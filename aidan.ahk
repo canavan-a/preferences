@@ -49,6 +49,13 @@ F12::
 !s::Send("^s")
 !z::Send("^z")
 !f::Send("^f")
+!a::Send("^a")
+
+; unbind my arrow keys
+Left::Return
+Right::Return
+Up::Return
+Down::Return
 
 
 
@@ -112,3 +119,4 @@ Space & `;::
 
 ; This final #HotIf turns off the condition for any hotkeys defined afterward.
 #HotIf
+
