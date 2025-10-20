@@ -57,6 +57,9 @@ Right::Return
 Up::Return
 Down::Return
 
+; command to backspace
+![::Send("{Backspace}")
+!]::Send("^{Backspace}")
 
 
 ; The #HotIf directive creates the 'conditional' third key (Alt)
@@ -123,6 +126,17 @@ Space & '::
 
 
 ; --- Left Hand Top Row (qwert) -> (!@#$%) ---
+
+Space & CapsLock::
+{
+    Send("``")
+}
+
+Space & Tab::
+{
+    Send("~")
+}
+
 Space & q::
 {
     Send("{!}")
@@ -148,7 +162,7 @@ Space & t::
     Send("%")
 }
 
-; --- Right Hand Home Row (yuiop) -> (&*()_+) ---
+; --- Right Hand Home Row (yuiop) -> (&*()_+) 
 Space & y::
 {
     Send("{^}")
