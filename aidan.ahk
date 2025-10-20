@@ -116,6 +116,68 @@ Space & `;::
     Send("0")
 }
 
+Space & '::
+{
+    Send("-")
+}
+
+
+; --- Left Hand Top Row (qwert) -> (!@#$%) ---
+Space & q::
+{
+    Send("{!}")
+}
+
+Space & w::
+{
+    Send("@")
+}
+
+Space & e::
+{
+    Send("{#}")
+}
+
+Space & r::
+{
+    Send("$")
+}
+
+Space & t::
+{
+    Send("%")
+}
+
+; --- Right Hand Home Row (yuiop) -> (&*()_+) ---
+Space & y::
+{
+    Send("{^}")
+}
+
+Space & u::
+{
+    Send("&")
+}
+
+Space & i::
+{
+    Send("*")
+}
+
+Space & o::
+{
+    Send("(")
+}
+
+Space & p::
+{
+    Send(")")
+}
+Space & [::
+{
+    Send("_")
+}
+
 
 ; This final #HotIf turns off the condition for any hotkeys defined afterward.
 #HotIf
