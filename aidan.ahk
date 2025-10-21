@@ -1,57 +1,56 @@
-﻿#SuspendExempt true        ; This ensures the hotkey below will ALWAYS work.
+﻿#SuspendExempt true ; This ensures the hotkey below will ALWAYS work.
 F12::
-{
-    Suspend(-1) ; Toggle the suspension state
-
-    if (A_IsSuspended)  ; Check the built-in variable: 1 if suspended, 0 otherwise
     {
-        ; Script is now suspended (stopped)
-        MsgBox("Hotkeys STOPPED (Suspended). Typing is normal.", "Script Status", 64) ; 64 = Information Icon
+        Suspend(-1) ; Toggle the suspension state
+
+        if (A_IsSuspended) ; Check the built-in variable: 1 if suspended, 0 otherwise
+        {
+            ; Script is now suspended (stopped)
+            MsgBox("Hotkeys STOPPED (Suspended). Typing is normal.", "Script Status", 64) ; 64 = Information Icon
+        }
+        else
+        {
+            ; Script is now running (started)
+            MsgBox("Hotkeys STARTED (Running). Custom keys are active.", "Script Status", 64)
+        }
     }
-    else
-    {
-        ; Script is now running (started)
-        MsgBox("Hotkeys STARTED (Running). Custom keys are active.", "Script Status", 64)
-    }
-}
-#SuspendExempt false       ; Stops exempting hotkeys.
+    #SuspendExempt false ; Stops exempting hotkeys.
 
+    !q::Send("{Esc}")
 
-!q::Send("{Esc}")
+    ; Original Alt mappings
+    !h::Send("{Left}")
+    !l::Send("{Right}")
+    !j::Send("{Down}")
+    !k::Send("{Up}")
 
-; Original Alt mappings
-!h::Send("{Left}")
-!l::Send("{Right}")
-!j::Send("{Down}")
-!k::Send("{Up}")
+    !y::Send("^" "{Left}")
+    !o::Send("^" "{Right}")
 
-!y::Send("^" "{Left}")
-!o::Send("^" "{Right}")
+    !u::Send("{PgDn}")
+    !i::Send("{PgUp}")
 
-!u::Send("{PgDn}")
-!i::Send("{PgUp}")
+    ; Alt + Shift mappings
+    !+h::Send("+{Left}")
+    !+l::Send("+{Right}")
+    !+j::Send("+{Down}")
+    !+k::Send("+{Up}")
 
-; Alt + Shift mappings
-!+h::Send("+{Left}")
-!+l::Send("+{Right}")
-!+j::Send("+{Down}")
-!+k::Send("+{Up}")
+    !+y::Send("^+{Left}")
+    !+o::Send("^+{Right}")
 
-!+y::Send("^+{Left}")
-!+o::Send("^+{Right}")
+    !+u::Send("+{PgDn}")
+    !+i::Send("+{PgUp}")
 
-!+u::Send("+{PgDn}")
-!+i::Send("+{PgUp}")
+    !c::Send("^c")
+    !v::Send("^v")
+    !x::Send("^x")
+    !s::Send("^s")
+    !z::Send("^z")
+    !f::Send("^f")
+    !a::Send("^a")
 
-!c::Send("^c")
-!v::Send("^v")
-!x::Send("^x")
-!s::Send("^s")
-!z::Send("^z")
-!f::Send("^f")
-!a::Send("^a")
-
-; unbind my arrow keys
+    ; unbind my arrow keys
 Left::Return
 Right::Return
 Up::Return
@@ -61,138 +60,142 @@ Down::Return
 !;::Send("{Backspace}")
 !'::Send("^{Backspace}")
 
-
 ; The #HotIf directive creates the 'conditional' third key (Alt)
 ; This means all hotkeys below will ONLY be active when Alt is held down.
 #HotIf GetKeyState("Alt", "P")
 
 ; --- Left Hand Home Row (A, S, D, F, G) -> (1, 2, 3, 4, 5) ---
 Space & a::
-{
-    Send("1")
-}
+    {
+        Send("1")
+    }
 
 Space & s::
-{
-    Send("2")
-}
+    {
+        Send("2")
+    }
 
 Space & d::
-{
-    Send("3")
-}
+    {
+        Send("3")
+    }
 
 Space & f::
-{
-    Send("4")
-}
+    {
+        Send("4")
+    }
 
 Space & g::
-{
-    Send("5")
-}
+    {
+        Send("5")
+    }
 
-; --- Right Hand Home Row (H, J, K, L) -> (6, 7, 8, 9) ---
+    ; --- Right Hand Home Row (H, J, K, L) -> (6, 7, 8, 9) ---
 Space & h::
-{
-    Send("6")
-}
+    {
+        Send("6")
+    }
 
 Space & j::
-{
-    Send("7")
-}
+    {
+        Send("7")
+    }
 
 Space & k::
-{
-    Send("8")
-}
+    {
+        Send("8")
+    }
 
 Space & l::
-{
-    Send("9")
-}
+    {
+        Send("9")
+    }
 
-; You could also map the semicolon (;) key to 0
-Space & `;::
-{
-    Send("0")
-}
+    ; You could also map the semicolon (;) key to 0
+    Space & `;::
+    {
+        Send("0")
+    }
 
 Space & '::
-{
-    Send("-")
-}
+    {
+        Send("-")
+    }
 
-
-; --- Left Hand Top Row (qwert) -> (!@#$%) ---
+    ; --- Left Hand Top Row (qwert) -> (!@#$%) ---
 
 Space & CapsLock::
-{
-    Send("``")
-}
+    {
+        Send("``")
+    }
 
 Space & Tab::
-{
-    Send("~")
-}
+    {
+        Send("~")
+    }
 
 Space & q::
-{
-    Send("{!}")
-}
+    {
+        Send("{!}")
+    }
 
 Space & w::
-{
-    Send("@")
-}
+    {
+        Send("@")
+    }
 
 Space & e::
-{
-    Send("{#}")
-}
+    {
+        Send("{#}")
+    }
 
 Space & r::
-{
-    Send("$")
-}
+    {
+        Send("$")
+    }
 
 Space & t::
-{
-    Send("%")
-}
+    {
+        Send("%")
+    }
 
-; --- Right Hand Home Row (yuiop) -> (&*()_+) 
+    ; --- Right Hand Home Row (yuiop) -> (&*()_+) 
 Space & y::
-{
-    Send("{^}")
-}
+    {
+        Send("{^}")
+    }
 
 Space & u::
-{
-    Send("&")
-}
+    {
+        Send("&")
+    }
 
 Space & i::
-{
-    Send("*")
-}
+    {
+        Send("*")
+    }
 
 Space & o::
-{
-    Send("(")
-}
+    {
+        Send("(")
+    }
 
 Space & p::
-{
-    Send(")")
-}
-Space & [::
-{
-    Send("_")
-}
+    {
+        Send(")")
+    }
+Space & SC1A::
+    {
+        Send("_")
+    }
+Space & SC1B::
+    {
+        Send("{+}")
+    }
+Space & Enter::
+    {
+        Send("=")
+    }
 
-
-; This final #HotIf turns off the condition for any hotkeys defined afterward.
-#HotIf
-
+    ; This final #HotIf turns off the condition for any hotkeys defined afterward.
+    #HotIf
