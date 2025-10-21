@@ -58,8 +58,8 @@ Up::Return
 Down::Return
 
 ; command to backspace
-![::Send("{Backspace}")
-!]::Send("^{Backspace}")
+!;::Send("{Backspace}")
+!'::Send("^{Backspace}")
 
 
 ; The #HotIf directive creates the 'conditional' third key (Alt)
