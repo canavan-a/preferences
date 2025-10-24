@@ -49,6 +49,8 @@ F12::
     !z::Send("^z")
     !f::Send("^f")
     !a::Send("^a")
+    !e::Send("^e")
+    !b::Send("^b")
 
     ; unbind my arrow keys
 Left::Return
@@ -159,7 +161,7 @@ Space & t::
         Send("%")
     }
 
-    ; --- Right Hand Home Row (yuiop) -> (&*()_+) 
+    ; --- Right Hand Home Row (yuiop) -> (&*()_+)
 Space & y::
     {
         Send("{^}")
