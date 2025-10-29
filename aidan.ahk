@@ -52,6 +52,8 @@ F12::
     !e::Send("^e")
     !b::Send("^b")
     !n::Send("^n")
+    !d::Send("^d")
+
 
     ; unbind my arrow keys
 Left::Return
