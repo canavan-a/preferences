@@ -7,7 +7,7 @@
 {
   imports =
     [ # Include the results of the hardware scan.
-      ./hardware-configuration.nix
+      /etc/nixos/hardware-configuration.nix
     ];
 
   # Bootloader.
@@ -62,28 +62,16 @@
   # List packages installed in system profile. To search, run:
   # $ nix search wget
   environment.systemPackages = with pkgs; [
-  #  vim # Do not forget to add an editor to edit configuration.nix! The Nano editor is also installed by default.
-  #  wget
+	 nixfmt
      wget
      fastfetch
      git
      gh
      micro
      cloudflared
+     sops
+     age
   ];
-
-  # Some programs need SUID wrappers, can be configured further or are
-  # started in user sessions.
-  # programs.mtr.enable = true;
-  # programs.gnupg.agent = {
-  #   enable = true;
-  #   enableSSHSupport = true;
-  # };
-
-  # List services that you want to enable:
-
-  # Enable the OpenSSH daemon.
-  # services.openssh.enable = true;
 
   # Open ports in the firewall.
   # networking.firewall.allowedTCPPorts = [ ... ];
@@ -100,11 +88,21 @@
   system.stateVersion = "25.11"; # Did you read the comment?
 
 	  
-  
+	  
   services.openssh.enable = true;
   
 
    programs.bash.shellInit = ''
 	fastfetch
   '';
+
+  environment.etc."micro/settings.json" = {
+	source = /home/nixos/preferences/micro/settings.json;
+  };
+  
+  environment.etc."micro/bindings.json" = {
+  	source = /home/nixos/preferences/micro/bindings.json;
+  };
+
+
 }
