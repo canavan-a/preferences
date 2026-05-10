@@ -5,104 +5,127 @@
 { config, pkgs, ... }:
 
 {
-  imports =
-    [ # Include the results of the hardware scan.
-      /etc/nixos/hardware-configuration.nix
-    ];
+	imports = [
+	  # Include the results of the hardware scan.
+		/etc/nixos/hardware-configuration.nix
+		"${builtins.fetchTarball "https://github.com/Mic92/sops-nix/archive/master.tar.gz"}/modules/sops"
+	];
 
-  # Bootloader.
-  boot.loader.systemd-boot.enable = true;
-  boot.loader.efi.canTouchEfiVariables = true;
+	environment.variables = {
+	  SOPS_AGE_KEY_FILE = "/etc/age/keys.txt";
+	};
 
-  networking.hostName = "nixos"; # Define your hostname.
-  # networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
+	sops = {
+		age.keyFile = "/etc/age/keys.txt";
+		defaultSopsFile = /home/nixos/preferences/nix/secrets/secrets.yaml;
+		secrets.cloudflared-creds = {};	
+	};
 
-  # Configure network proxy if necessary
-  # networking.proxy.default = "http://user:password@proxy:port/";
-  # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
+	# Bootloader.
+	boot.loader.systemd-boot.enable = true;
+	boot.loader.efi.canTouchEfiVariables = true;
 
-  # Enable networking
-  networking.networkmanager.enable = true;
+	networking.hostName = "nixos"; # Define your hostname.
+	# networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
-  # Set your time zone.
-  time.timeZone = "America/New_York";
+	# Configure network proxy if necessary
+	# networking.proxy.default = "http://user:password@proxy:port/";
+	# networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
 
-  # Select internationalisation properties.
-  i18n.defaultLocale = "en_US.UTF-8";
+	# Enable networking
+	networking.networkmanager.enable = true;
 
-  i18n.extraLocaleSettings = {
-    LC_ADDRESS = "en_US.UTF-8";
-    LC_IDENTIFICATION = "en_US.UTF-8";
-    LC_MEASUREMENT = "en_US.UTF-8";
-    LC_MONETARY = "en_US.UTF-8";
-    LC_NAME = "en_US.UTF-8";
-    LC_NUMERIC = "en_US.UTF-8";
-    LC_PAPER = "en_US.UTF-8";
-    LC_TELEPHONE = "en_US.UTF-8";
-    LC_TIME = "en_US.UTF-8";
-  };
+	# Set your time zone.
+	time.timeZone = "America/New_York";
 
-  # Configure keymap in X11
-  services.xserver.xkb = {
-    layout = "us";
-    variant = "";
-  };
+	# Select internationalisation properties.
+	i18n.defaultLocale = "en_US.UTF-8";
 
-  # Define a user account. Don't forget to set a password with ‘passwd’.
-  users.users.nixos = {
-    isNormalUser = true;
-    description = "nixos";
-    extraGroups = [ "networkmanager" "wheel" ];
-    packages = with pkgs; [];
-  };
+	i18n.extraLocaleSettings = {
+		LC_ADDRESS = "en_US.UTF-8";
+		LC_IDENTIFICATION = "en_US.UTF-8";
+		LC_MEASUREMENT = "en_US.UTF-8";
+		LC_MONETARY = "en_US.UTF-8";
+		LC_NAME = "en_US.UTF-8";
+		LC_NUMERIC = "en_US.UTF-8";
+		LC_PAPER = "en_US.UTF-8";
+		LC_TELEPHONE = "en_US.UTF-8";
+		LC_TIME = "en_US.UTF-8";
+	};
 
-  # Allow unfree packages
-  nixpkgs.config.allowUnfree = true;
+	# Configure keymap in X11
+	services.xserver.xkb = {
+		layout = "us";
+		variant = "";
+	};
 
-  # List packages installed in system profile. To search, run:
-  # $ nix search wget
-  environment.systemPackages = with pkgs; [
-	 nixfmt
-     wget
-     fastfetch
-     git
-     gh
-     micro
-     cloudflared
-     sops
-     age
-  ];
+	# Define a user account. Don't forget to set a password with ‘passwd’.
+	users.users.nixos = {
+		 isNormalUser = true;
+		 description = "nixos";
+		 extraGroups = [
+		   "networkmanager"
+		   "wheel"
+		 ];
+		 packages = with pkgs; [ ];
+	};
 
-  # Open ports in the firewall.
-  # networking.firewall.allowedTCPPorts = [ ... ];
-  # networking.firewall.allowedUDPPorts = [ ... ];
-  # Or disable the firewall altogether.
-  # networking.firewall.enable = false;
+	# Allow unfree packages
+	nixpkgs.config.allowUnfree = true;
 
-  # This value determines the NixOS release from which the default
-  # settings for stateful data, like file locations and database versions
-  # on your system were taken. It‘s perfectly fine and recommended to leave
-  # this value at the release version of the first install of this system.
-  # Before changing this value read the documentation for this option
-  # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-  system.stateVersion = "25.11"; # Did you read the comment?
+	# List packages installed in system profile. To search, run:
+	# $ nix search wget
+	environment.systemPackages = with pkgs; [
+		wget
+		fastfetch
+		git
+		gh
+		micro
+		cloudflared
+		sops
+		age
+		tor
+		monero-cli
+		tmux
+	];
 
-	  
-	  
-  services.openssh.enable = true;
-  
+	# Open ports in the firewall.
+	# networking.firewall.allowedTCPPorts = [ ... ];
+	# networking.firewall.allowedUDPPorts = [ ... ];
+	# Or disable the firewall altogether.
+	# networking.firewall.enable = false;
+	networking.firewall.allowedTCPPorts = [ 22 ];
 
-   programs.bash.shellInit = ''
-	fastfetch
-  '';
+	# This value determines the NixOS release from which the default
+	# settings for stateful data, like file locations and database versions
+	# on your system were taken. It‘s perfectly fine and recommended to leave
+	# this value at the release version of the first install of this system.
+	# Before changing this value read the documentation for this option
+	# (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
+	system.stateVersion = "25.11"; # Did you read the comment?
 
-  environment.etc."micro/settings.json" = {
-	source = /home/nixos/preferences/micro/settings.json;
-  };
-  
-  environment.etc."micro/bindings.json" = {
-  	source = /home/nixos/preferences/micro/bindings.json;
-  };
+	services.openssh.enable = true;
 
+	services.tor.enable = true;
+
+	services.cloudflared = {
+		enable = true;
+		tunnels = {
+			"d49c6f4d-1a09-4071-a495-cacbf3f80ab8" = {
+				credentialsFile = config.sops.secrets.cloudflared-creds.path;
+				default = "http_status:404";
+				ingress = {
+				    	"nixos.aidan.house" = {
+				    	service = "ssh://127.0.0.1:22";
+					};
+				};
+			};
+		
+		};
+	};
+	
+	programs.bash.interactiveShellInit = ''
+	  	fastfetch
+	'';
 
 }
