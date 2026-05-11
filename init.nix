@@ -1,33 +1,14 @@
-# Edit this configuration file to define what should be installed on
-# your system.  Help is available in the configuration.nix(5) man page
-# and in the NixOS manual (accessible by running ‘nixos-help’).
 { config, pkgs, ... }:
 {
 
 	nix.settings.experimental-features = ["nix-command" "flakes"];
 	
-	environment.variables = {
-	  SOPS_AGE_KEY_FILE = "/etc/age/keys.txt";
-	};
-
-	sops = {
-		age.keyFile = "/etc/age/keys.txt";
-		defaultSopsFile = ./secrets/secrets.yaml;
-		secrets.cloudflared-creds = {};	
-	};
-
 	# Bootloader.
 	boot.loader.systemd-boot.enable = true;
 	boot.loader.efi.canTouchEfiVariables = true;
 
 	networking.hostName = "nixos"; # Define your hostname.
-	# networking.wireless.enable = true;  # Enables wireless support via wpa_supplicant.
 
-	# Configure network proxy if necessary
-	# networking.proxy.default = "http://user:password@proxy:port/";
-	# networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
-
-	# Enable networking
 	networking.networkmanager.enable = true;
 
 	# Set your time zone.
@@ -73,15 +54,6 @@
 	environment.systemPackages = with pkgs; [
 		wget
 		fastfetch
-		git
-		gh
-		micro
-		cloudflared
-		sops
-		age
-		tor
-		monero-cli
-		tmux
 	];
 
 	# Open ports in the firewall.
@@ -101,30 +73,8 @@
 
 	services.openssh.enable = true;
 
-	services.tor.enable = true;
-
-	services.cloudflared = {
-		enable = true;
-		tunnels = {
-			"d49c6f4d-1a09-4071-a495-cacbf3f80ab8" = {
-				credentialsFile = config.sops.secrets.cloudflared-creds.path;
-				default = "http_status:404";
-				ingress = {
-				    	"nixos.aidan.house" = {
-				    	service = "ssh://127.0.0.1:22";
-					};
-				};
-			};
-		
-		};
-	};
-
-	programs.bash.shellAliases = {
-	};
-	
 	programs.bash.interactiveShellInit = ''
-fastfetch
-nixrb() { sudo nixos-rebuild switch --flake /etc/nixos#"$1"; }
-'';
+	  	fastfetch
+	'';
 
 }
