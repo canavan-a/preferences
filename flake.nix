@@ -5,10 +5,14 @@
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
 	sops-nix.url = "github:Mic92/sops-nix";
 	hyprland.url = "github:hyprwm/Hyprland";
+	home-manager = {
+		url = "github:nix-community/home-manager/release-25.11";
+		inputs.nixpkgs.follows = "nixpkgs";	
+	};
   };
 
 
-  outputs = { self, nixpkgs, sops-nix, hyprland, ... } @ inputs: {
+  outputs = { self, nixpkgs, sops-nix, hyprland, home-manager, ... } @ inputs: {
 	nixosConfigurations = {
 		desktop = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
@@ -17,6 +21,9 @@
 				./common.nix 
 				./hardware-configuration.nix
 				./modules/desktop.nix
+				./modules/micro.nix
+				./modules/keyd.nix
+				home-manager.nixosModules.home-manager
 				sops-nix.nixosModules.sops
 				hyprland.nixosModules.default
 			];	

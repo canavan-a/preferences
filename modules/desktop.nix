@@ -33,7 +33,7 @@
 			 ];	
 			bind = [
 			    "ALT SHIFT, T, exec, kitty"
-			    "ALT SHIFT, Q, killactive,"
+			    "ALT SHIFT, Q, killactive,"			    
 			];
 			env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
 			input = {

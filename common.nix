@@ -75,7 +75,6 @@
 		fastfetch
 		git
 		gh
-		micro
 		cloudflared
 		sops
 		age
