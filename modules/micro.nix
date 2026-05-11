@@ -13,9 +13,10 @@
 		};
 
 		home.file.".config/micro/bindings.json".text = builtins.toJSON {
-		  colorscheme = "twilight";
-		  syntax = true;
-		  linter = true;
+		  "Alt-/" = "lua:comment.comment";
+		  "CtrlBackspace" = "DeleteWordLeft";
+		  "CtrlUnderscore" = "lua:comment.comment";
+		  "Escape" = "command:quit";
 		};
 	};
 }
