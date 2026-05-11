@@ -79,8 +79,6 @@
 		cloudflared
 		sops
 		age
-		tor
-		monero-cli
 		tmux
 	];
 

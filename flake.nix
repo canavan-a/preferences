@@ -14,6 +14,7 @@
 			modules = [
 				./common.nix 
 				./hardware-configuration.nix
+				./modules/desktop.nix
 				sops-nix.nixosModules.sops
 			];	
 		};
@@ -22,6 +23,7 @@
 			modules = [
 				./common.nix 
 				./hardware-configuration.nix
+				./modules/server.nix
 				sops-nix.nixosModules.sops
 			];	
 		};
