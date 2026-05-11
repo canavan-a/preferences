@@ -22,7 +22,7 @@
 				./hardware-configuration.nix
 				./modules/desktop.nix
 				./modules/micro.nix
-				./modules/keyb.nix
+				./modules/keyd.nix
 				home-manager.nixosModules.home-manager
 				sops-nix.nixosModules.sops
 				hyprland.nixosModules.default
