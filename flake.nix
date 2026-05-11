@@ -4,18 +4,21 @@
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-25.11";
 	sops-nix.url = "github:Mic92/sops-nix";
+	hyprland.url = "github:hyprwm/Hyprland";
   };
 
 
-  outputs = { self, nixpkgs, sops-nix }: {
+  outputs = { self, nixpkgs, sops-nix, hyprland, ... } @ inputs: {
 	nixosConfigurations = {
 		desktop = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
+			specialArgs = {inherit inputs; };
 			modules = [
 				./common.nix 
 				./hardware-configuration.nix
 				./modules/desktop.nix
 				sops-nix.nixosModules.sops
+				hyprland.nixosModules.default
 			];	
 		};
 		server = nixpkgs.lib.nixosSystem {
