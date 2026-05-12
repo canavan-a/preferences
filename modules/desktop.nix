@@ -1,22 +1,22 @@
 # desktop packages here
 
-{ inputs, config, pkgs, ...}:
+{ inputs, config, pkgs, ... }:
 {
 	environment.systemPackages = with pkgs; [
 		wayvnc
-j		kitty
+		kitty
 		hyprcursor
 		adwaita-icon-theme
 		brave
 		pulsemixer
-		hyprpaper
 		waybar
+		swww
 	];
 
 	programs.waybar.enable = true;
-	stylix.targets.gnome.enable = false;
-
-	stylix.image = ./wall/w1.jpg;
+	stylix.enable = true;
+	
+	stylix.image = ./modules/wall/img.jpg;
 	
 	networking.firewall.allowedTCPPorts = [ 5900 ];
 
@@ -37,11 +37,12 @@ j		kitty
 		package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
 		portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
 		settings = {
-			monitor = [ "HEADLESS-1,2560x1600,0x0,2"
+			monitor = [ "HEADLESS-1,2560x1600,0x0,4"
 			"HDMI-A-2,2560x1600,0x0,1" ];
 			exec-once = [ 
 				"wayvnc --render-cursor 0.0.0.0"
 				"waybar"
+				"swww-daemon && sleep 1 && swww img /etc/nixos/modules/wall/img.jpg"
 			 ];	
 			bind = [
 				"ALT_R, T, exec, kitty"
