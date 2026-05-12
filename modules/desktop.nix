@@ -12,16 +12,18 @@
 		waybar
 		swww
 	];
-
+	
 	programs.waybar.enable = true;
 	stylix.enable = true;
-	
-	stylix.image = ./modules/wall/img.jpg;
+	stylix.polarity = "dark";
+	stylix.image = ./wall/w1.jpg;
 	
 	networking.firewall.allowedTCPPorts = [ 5900 ];
 
 	home-manager.users.nixos = {
-	  services.hyprpaper.enable = true;
+		programs.kitty.enable = true;
+		programs.waybar.enable = true;
+	  	services.hyprpaper.enable = true;
 	};
 
 	services.greetd = {
@@ -37,7 +39,7 @@
 		package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
 		portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
 		settings = {
-			monitor = [ "HEADLESS-1,2560x1600,0x0,4"
+			monitor = [ "HEADLESS-1,2560x1600,0x0,6"
 			"HDMI-A-2,2560x1600,0x0,1" ];
 			exec-once = [ 
 				"wayvnc --render-cursor 0.0.0.0"
