@@ -14,6 +14,9 @@ j		kitty
 	];
 
 	programs.waybar.enable = true;
+	stylix.targets.gnome.enable = false;
+
+	stylix.image = ./wall/w1.jpg;
 	
 	networking.firewall.allowedTCPPorts = [ 5900 ];
 
@@ -34,7 +37,8 @@ j		kitty
 		package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
 		portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
 		settings = {
-			monitor = [ "HEADLESS-1,2560x1600,0x0,2" ];
+			monitor = [ "HEADLESS-1,2560x1600,0x0,2"
+			"HDMI-A-2,2560x1600,0x0,1" ];
 			exec-once = [ 
 				"wayvnc --render-cursor 0.0.0.0"
 				"waybar"
