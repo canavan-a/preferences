@@ -8,6 +8,8 @@
 		hyprcursor
 		adwaita-icon-theme
 		swww
+		brave
+		pulsemixer
 	];
 
 	networking.firewall.allowedTCPPorts = [ 5900 ];
@@ -25,7 +27,7 @@
 		package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
 		portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
 		settings = {
-			monitor = [ "HEADLESS-1,1920x1080,0x0,1" ];
+			monitor = [ "HEADLESS-1,2560x1600,0x0,0.5" ];
 			exec-once = [ 
 				"wayvnc --render-cursor 0.0.0.0"
 				"swww-daemon"
@@ -33,7 +35,13 @@
 			 ];	
 			bind = [
 			    "ALT SHIFT, T, exec, kitty"
-			    "ALT SHIFT, Q, killactive,"			    
+			    "ALT SHIFT, Q, killactive,"
+			    "ALT SHIFT, B, exec, brave"
+
+				"ALT CTRL, H, movefocus, l"
+				"ALT CTRL, L, movefocus, r"
+				"ALT CTRL, K, movefocus, u"
+				"ALT CTRL, J, movefocus, d"
 			];
 			env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
 			input = {
