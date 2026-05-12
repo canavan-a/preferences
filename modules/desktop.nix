@@ -13,17 +13,34 @@
 		swww
 	];
 	
-	programs.waybar.enable = true;
+	# programs.waybar.enable = true;
 	stylix.enable = true;
 	stylix.polarity = "dark";
 	stylix.image = ./wall/w1.jpg;
+	stylix.opacity.terminal = 0.8;
+	stylix.targets.chromium.enable = true;
 	
 	networking.firewall.allowedTCPPorts = [ 5900 ];
-
+	programs.bash.interactiveShellInit = ''
+	  tput rmam
+	'';
+	
 	home-manager.users.nixos = {
 		programs.kitty.enable = true;
 		programs.waybar.enable = true;
+		programs.hyprlock = {
+			enable = true;
+			settings = {
+				
+			};
+		};
 	  	services.hyprpaper.enable = true;
+		stylix.targets.vscode.enable = true;
+		programs.vscode = {
+			enable = true;
+			package = pkgs.vscodium;	
+		};
+	  	programs.kitty.settings.confirm_os_window_close = 0;
 	};
 
 	services.greetd = {
@@ -49,7 +66,8 @@
 			bind = [
 				"ALT_R, T, exec, kitty"
 				"ALT_R, B, exec, brave"
-				"ALT_R SHIFT, Q, killactive,"
+				"ALT_R, C, exec, codium"
+				"ALT_R, Q, killactive,"
 				"ALT_R, H, movefocus, l"
 				"ALT_R, L, movefocus, r"
 				"ALT_R, K, movefocus, u"
@@ -70,6 +88,7 @@
 				"ALT_R SHIFT, G, movetoworkspace, 5"
 				"ALT_R, Space, togglefloating,"
 				"ALT_R, Return, fullscreen,"
+				"ALT_R SHIFT, E, exec, hyprlock"				
 	
 			];
 			env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
