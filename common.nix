@@ -79,6 +79,7 @@
 		sops
 		age
 		tmux
+		ripgrep
 	];
 
 	# Open ports in the firewall.

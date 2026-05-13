@@ -10,7 +10,8 @@
 		inputs.nixpkgs.follows = "nixpkgs";	
 	};
 	stylix = {
-	    url = "github:canavan-a/stylix";
+	    # url = "github:canavan-a/stylix/stable-base";
+		url = "github:nix-community/stylix/release-25.11";	
 	    inputs.nixpkgs.follows = "nixpkgs";
 	};
   };
