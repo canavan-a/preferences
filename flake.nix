@@ -10,7 +10,7 @@
 		inputs.nixpkgs.follows = "nixpkgs";	
 	};
 	stylix = {
-	    url = "github:nix-community/stylix/release-25.11";
+	    url = "github:canavan-a/stylix";
 	    inputs.nixpkgs.follows = "nixpkgs";
 	};
   };
@@ -25,8 +25,9 @@
 				./common.nix 
 				./hardware-configuration.nix
 				./modules/desktop.nix
-				./modules/micro.nix
 				./modules/keyd.nix
+				./modules/dir.nix
+				./modules/micro.nix
 				home-manager.nixosModules.home-manager
 				sops-nix.nixosModules.sops
 				hyprland.nixosModules.default
@@ -39,6 +40,8 @@
 				./common.nix 
 				./hardware-configuration.nix
 				./modules/server.nix
+				./modules/micro.nix
+				home-manager.nixosModules.home-manager
 				sops-nix.nixosModules.sops
 			];	
 		};
