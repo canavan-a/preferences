@@ -1,4 +1,4 @@
-{config, pkgs, ...}:
+{config, pkgs, lib, ...}:
 {
 	environment.systemPackages = with pkgs; [
 		micro
@@ -10,7 +10,7 @@
 			enable = true;
 			settings = {
 				syntax = true;
-				linter = true;	
+				linter = true;
 			};
 		};
 

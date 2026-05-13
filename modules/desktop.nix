@@ -19,7 +19,7 @@
 	stylix.image = ./wall/w1.jpg;
 	stylix.opacity.terminal = 0.8;
 	stylix.targets.chromium.enable = true;
-	
+	# stylix.base16Scheme = "${pkgs.base16-schemes}/share/themes/gruvbox-dark-hard.yaml";
 	networking.firewall.allowedTCPPorts = [ 5900 ];
 	programs.bash.interactiveShellInit = ''
 	  tput rmam
