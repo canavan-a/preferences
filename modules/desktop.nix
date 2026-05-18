@@ -88,7 +88,11 @@
 				"ALT_R SHIFT, G, movetoworkspace, 5"
 				"ALT_R, Space, togglefloating,"
 				"ALT_R, Return, fullscreen,"
-				"ALT_R SHIFT, E, exec, hyprlock"				
+				"ALT_R SHIFT, E, exec, hyprlock"
+				"ALT_R CTRL, H, resizeactive, -50 0"
+				"ALT_R CTRL, L, resizeactive, 50 0"
+				"ALT_R CTRL, K, resizeactive, 0 -50"
+				"ALT_R CTRL, J, resizeactive, 0 50"		
 	
 			];
 			env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
