@@ -1,6 +1,6 @@
 # desktop packages here
 
-{ inputs, config, pkgs, ... }:
+{ inputs, config, pkgs, lib, ... }:
 {
 	environment.systemPackages = with pkgs; [
 		wayvnc
@@ -10,31 +10,86 @@
 		brave
 		pulsemixer
 		waybar
-		swww
+		hyprpaper
+		hypridle
+		brightnessctl
+		wlsunset
 	];
 	
 	# programs.waybar.enable = true;
 	stylix.enable = true;
 	stylix.polarity = "dark";
-	stylix.image = ./wall/w1.jpg;
+	stylix.image = ./wall/w6.jpg;
 	stylix.opacity.terminal = 0.8;
 	stylix.targets.chromium.enable = true;
-	stylix.base16Scheme = "${pkgs.base16-schemes}/share/themes/gruvbox-dark-soft.yaml";
+	stylix.base16Scheme = "${pkgs.base16-schemes}/share/themes/twilight.yaml";
 	networking.firewall.allowedTCPPorts = [ 5900 ];
 	programs.bash.interactiveShellInit = ''
 	  tput rmam
 	'';
 	
 	home-manager.users.nixos = {
+		services.hyprpaper.enable = true;
 		programs.kitty.enable = true;
 		programs.waybar.enable = true;
+		services.hypridle = {
+			enable = true;
+			settings = {
+				listener = [
+					{
+						timeout = 1800;
+						on-timeout = "hyprlock";
+					}
+				];
+			};
+		};
+
+
 		programs.hyprlock = {
 			enable = true;
 			settings = {
+				general	= {
+					ignore_empty_input = true;	
+				};
+
+
+				input-field = lib.mkForce [{
+					monitor = "";
+					size = "300, 50";
+					outline_thickness = 2;
+					dots_size = 0.3;
+					dots_spacing = 0.2;
+					fade_on_empty = true;
+					placeholder_text = "password";
+					halign = "center";
+					valign = "center";
+				}];
+
+				label = [
+					{
+						monitor = "";
+						text = "$TIME";
+						font_size = 64;
+						halign = "center";
+						valign = "top";
+						position = "0, -100";
+					}	
+					{
+						monitor = "";
+						position = "0, -200";
+						text = "cmd[update:1000] date '+%A, %B %d'";
+						font_size = 24;
+						halign = "center";
+						valign = "top";
+						# position = "0, -100";
+					}
+				];
 				
 			};
 		};
-	  	services.hyprpaper.enable = true;
+
+		programs.hyprlock.settings = {};
+		
 		stylix.targets.vscode.enable = true;
 		programs.vscode = {
 			enable = true;
@@ -50,18 +105,22 @@
 			user = "nixos";			
 		};
 	};
+	environment.sessionVariables.WAYLAND_DISPLAY = "wayland-1";
 
 	programs.hyprland = {
 		enable = true;
 		package = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland;
 		portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
 		settings = {
-			monitor = [ "HEADLESS-1,2560x1600,0x0,6"
+			monitor = [ 
+			"HEADLESS-1,2560x1600,0x0,6"
 			"HDMI-A-2,2560x1600,0x0,1" ];
-			exec-once = [ 
-				"wayvnc --render-cursor 0.0.0.0"
-				"waybar"
-				"swww-daemon && sleep 1 && swww img /etc/nixos/modules/wall/img.jpg"
+			exec-once = [
+			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP" 
+			"wayvnc --render-cursor 0.0.0.0"
+			"waybar"
+			"hyprpaper"
+			"hypridle > /tmp/hypridle.log 2>&1"
 			 ];	
 			bind = [
 				"ALT_R, T, exec, kitty"
