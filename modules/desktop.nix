@@ -32,6 +32,9 @@
 		services.hyprpaper.enable = true;
 		programs.kitty.enable = true;
 		programs.waybar.enable = true;
+		services.hyprsunset = {
+			enable = true;					
+		};
 		services.hypridle = {
 			enable = true;
 			settings = {
@@ -121,6 +124,7 @@
 			"waybar"
 			"hyprpaper"
 			"hypridle > /tmp/hypridle.log 2>&1"
+			"hyprsunset"
 			 ];	
 			bind = [
 				"ALT_R, T, exec, kitty"
@@ -148,11 +152,8 @@
 				"ALT_R, Space, togglefloating,"
 				"ALT_R, Return, fullscreen,"
 				"ALT_R SHIFT, E, exec, hyprlock"
-				"ALT_R CTRL, H, resizeactive, -50 0"
-				"ALT_R CTRL, L, resizeactive, 50 0"
-				"ALT_R CTRL, K, resizeactive, 0 -50"
-				"ALT_R CTRL, J, resizeactive, 0 50"		
-	
+				"ALT_R, O, resizeactive, -50 0"
+				"ALT_R, P, resizeactive, 50 0"	
 			];
 			env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
 			input = {
