@@ -13,7 +13,6 @@
 		hyprpaper
 		hypridle
 		brightnessctl
-		wlsunset
 	];
 	
 	# programs.waybar.enable = true;
@@ -104,12 +103,7 @@
 	services.greetd = {
 		enable = true;
 		settings.default_session = {
-			command = "${pkgs.writeShellScript "start-hyprland-headless" ''
-				export WLR_BACKENDS=headless
-				export WLR_LIBINPUT_NO_DEVICES=1
-				export WLR_RENDERER_ALLOW_SOFTWARE=1
-				exec ${config.programs.hyprland.package}/bin/Hyprland
-			''}";
+			command = "${pkgs.hyprland}/bin/Hyprland";
 			user = "nixos";
 		};
 	};
