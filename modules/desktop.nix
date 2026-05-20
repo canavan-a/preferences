@@ -104,8 +104,13 @@
 	services.greetd = {
 		enable = true;
 		settings.default_session = {
-			command = "${pkgs.hyprland}/bin/Hyprland";
-			user = "nixos";			
+			command = "${pkgs.writeShellScript "start-hyprland-headless" ''
+				export WLR_BACKENDS=headless
+				export WLR_LIBINPUT_NO_DEVICES=1
+				export WLR_RENDERER_ALLOW_SOFTWARE=1
+				exec ${config.programs.hyprland.package}/bin/Hyprland
+			''}";
+			user = "nixos";
 		};
 	};
 	environment.sessionVariables.WAYLAND_DISPLAY = "wayland-1";
@@ -116,7 +121,7 @@
 		portalPackage = inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.xdg-desktop-portal-hyprland;
 		settings = {
 			monitor = [ 
-			"HEADLESS-1,2560x1600,0x0,6"
+			"HEADLESS-1,2560x1600,0x0,1"
 			"HDMI-A-2,2560x1600,0x0,1" ];
 			exec-once = [
 			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP" 
