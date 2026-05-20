@@ -14,10 +14,22 @@
 		url = "github:nix-community/stylix/release-25.11";	
 	    inputs.nixpkgs.follows = "nixpkgs";
 	};
+	home-server.url = "github:canavan-a/home-server"; 
   };
 
 
-  outputs = { self, nixpkgs, sops-nix, hyprland, home-manager, stylix, ... } @ inputs: {
+  outputs = { self, nixpkgs, sops-nix, hyprland, home-manager, stylix, home-server, ... } @ inputs: 
+  	let 
+	serverBase = [
+		./common.nix
+		./hardware-configuration.nix
+		./modules/server.nix
+		./modules/micro.nix
+		home-manager.nixosModules.home-manager
+		sops-nix.nixosModules.sops
+	];
+	in
+	{
 	nixosConfigurations = {
 		desktop = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
@@ -37,15 +49,15 @@
 		};
 		server = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
-			modules = [
-				./common.nix 
-				./hardware-configuration.nix
-				./modules/server.nix
-				./modules/micro.nix
-				home-manager.nixosModules.home-manager
-				sops-nix.nixosModules.sops
-			];	
+			modules = serverBase;	
 		};
+		homeServer = nixpkgs.lib.nixosSystem {
+			system = "x86_64-linux";
+			modules = serverBase ++ [
+				home-server.nixosModules.default
+			];
+		};
+		
 	};
   };
 }
