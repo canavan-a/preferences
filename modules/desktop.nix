@@ -13,6 +13,7 @@
 		hyprpaper
 		hypridle
 		brightnessctl
+		wlsunset
 	];
 	
 	# programs.waybar.enable = true;
@@ -31,9 +32,6 @@
 		services.hyprpaper.enable = true;
 		programs.kitty.enable = true;
 		programs.waybar.enable = true;
-		services.hyprsunset = {
-			enable = true;					
-		};
 		services.hypridle = {
 			enable = true;
 			settings = {
