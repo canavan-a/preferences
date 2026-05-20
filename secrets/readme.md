@@ -1,6 +1,6 @@
 # sops secret config
 
-run: 
+run:
 
 `sudo SOPS_AGE_KEY_FILE=/etc/age/keys.txt sops secrets.yaml`
 

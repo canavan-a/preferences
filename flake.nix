@@ -22,7 +22,6 @@
   	let 
 	serverBase = [
 		./common.nix
-		./hardware-configuration.nix
 		./modules/server.nix
 		./modules/micro.nix
 		home-manager.nixosModules.home-manager
@@ -36,11 +35,12 @@
 			specialArgs = {inherit inputs; };
 			modules = [
 				./common.nix 
-				./hardware-configuration.nix
+				./hardware-configuration-M70s.nix
 				./modules/desktop.nix
 				./modules/keyd.nix
 				./modules/dir.nix
 				./modules/micro.nix
+				./cloudflared-nixos-aidan-house.nix
 				home-manager.nixosModules.home-manager
 				sops-nix.nixosModules.sops
 				hyprland.nixosModules.default
@@ -49,12 +49,20 @@
 		};
 		server = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
-			modules = serverBase;	
+			modules = serverBase ++[
+				./hardware-configuration-M70s.nix
+				./cloudflared-nixos-aidan-house.nix
+			];	
 		};
 		homeServer = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
 			modules = serverBase ++ [
+				./hardware-configuration-M70s.nix
+				./cloudflared-nixos-aidan-house.nix
 				home-server.nixosModules.default
+				{ 
+					services.home-server.streamer.enable = true;	
+				}
 			];
 		};
 		
