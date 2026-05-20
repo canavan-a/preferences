@@ -154,6 +154,8 @@
 				"ALT_R SHIFT, E, exec, hyprlock"
 				"ALT_R, O, resizeactive, -50 0"
 				"ALT_R, P, resizeactive, 50 0"	
+				"ALT_R SHIFT, O, resizeactive, 0 -50"
+				"ALT_R SHIFT, P, resizeactive, 0 50"	
 			];
 			env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
 			input = {
