@@ -124,7 +124,6 @@
 			"waybar"
 			"hyprpaper"
 			"hypridle > /tmp/hypridle.log 2>&1"
-			"hyprsunset"
 			 ];	
 			bind = [
 				"ALT_R, T, exec, kitty"
