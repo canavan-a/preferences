@@ -117,7 +117,7 @@
 		settings = {
 			monitor = [ 
 			"HEADLESS-1,2560x1600,0x0,6"
-			"HDMI-A-2,2560x1600,0x0,1,mirror,HEADLESS-1" ];
+			"HDMI-A-2,2560x1600,0x0,1" ];
 			exec-once = [
 			"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP" 
 			"wayvnc --render-cursor 0.0.0.0"
