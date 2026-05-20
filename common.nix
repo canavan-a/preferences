@@ -80,6 +80,7 @@
 		age
 		tmux
 		ripgrep
+		ffmpeg
 	];
 
 	# Open ports in the firewall.
