@@ -13,7 +13,6 @@
 		hyprpaper
 		hypridle
 		brightnessctl
-		wlsunset
 	];
 	
 	# programs.waybar.enable = true;
@@ -101,7 +100,8 @@
 	services.greetd = {
 		enable = true;
 		settings.default_session = {
-		command = "${inputs.hyprland.packages.${pkgs.stdenv.hostPlatform.system}.hyprland}/bin/Hyprland";			user = "nixos";
+			command = "${pkgs.hyprland}/bin/Hyprland";
+			user = "nixos";
 		};
 	};
 	environment.sessionVariables.WAYLAND_DISPLAY = "wayland-1";
