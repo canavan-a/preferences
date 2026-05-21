@@ -34,7 +34,7 @@
 			specialArgs = {inherit inputs; };
 			modules = [
 				./common.nix 
-				./hardware-configuration-M70s.nix
+				./hardware-configuration-framework-16.nix
 				./modules/desktop.nix
 				./modules/keyd.nix
 				./modules/dir.nix
