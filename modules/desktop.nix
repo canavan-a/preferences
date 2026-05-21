@@ -153,8 +153,7 @@
 
 				general = {
 					border_size = 2;
-					"col.active_border" = "rgba(cba6f7ff)";
-					"col.inactive_border" = "rgba(00000000)";
+					# border colors are managed by stylix
 				};
 
 			};
