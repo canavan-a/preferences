@@ -39,7 +39,13 @@
 				./modules/keyd.nix
 				./modules/dir.nix
 				./modules/micro.nix
-				./cloudflared-nixos-aidan-house.nix
+				# ./cloudflared-nixos-aidan-house.nix
+				(import ./cloudflare/config.nix { 
+					uuid = "d49c6f4d-1a09-4071-a495-cacbf3f80ab8";
+					ingress = {
+						"nixos.aidan.house".service = "ssh://127.0.0.1:22";
+					};
+				})
 				home-manager.nixosModules.home-manager
 				sops-nix.nixosModules.sops
 				stylix.nixosModules.stylix
@@ -49,14 +55,24 @@
 			system = "x86_64-linux";
 			modules = serverBase ++[
 				./hardware-configuration-M70s.nix
-				./cloudflared-nixos-aidan-house.nix
+				(import ./cloudflare/config.nix { 
+					uuid = "d49c6f4d-1a09-4071-a495-cacbf3f80ab8";
+					ingress = {
+						"nixos.aidan.house".service = "ssh://127.0.0.1:22";
+					};
+				})
 			];	
 		};
 		homeServer = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
 			modules = serverBase ++ [
 				./hardware-configuration-M70s.nix
-				./cloudflared-nixos-aidan-house.nix
+				(import ./cloudflare/config.nix { 
+					uuid = "d49c6f4d-1a09-4071-a495-cacbf3f80ab8";
+					ingress = {
+						"nixos.aidan.house".service = "ssh://127.0.0.1:22";
+					};
+				})
 				home-server.nixosModules.default
 				{ 
 					services.home-server.streamer.enable = true;	
