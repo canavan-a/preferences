@@ -28,6 +28,8 @@
 	'';
 
 	home-manager.users.nixos = {
+		programs.swayimg.enable = true;
+		programs.mpv.enable = true;
 		services.hyprpaper.enable = true;
 		programs.kitty.enable = true;
 		programs.waybar.enable = true;
