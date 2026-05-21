@@ -109,6 +109,7 @@
 	programs.bash.interactiveShellInit = ''
 fastfetch
 nixrb() { sudo nixos-rebuild switch --flake /etc/nixos#"$1"; }
+nixsync() {cd /etc/nixos && sudo git pull origin main; }
 '';
 
 }
