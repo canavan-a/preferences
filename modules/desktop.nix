@@ -119,7 +119,7 @@
 					"ALT_R, T, exec, kitty"
 					"ALT_R, B, exec, brave"
 					"ALT_R, C, exec, codium"
-					"ALT_R, Q, killactive,"
+					"ALT_R SHIFT, Q, killactive,"
 					"ALT_R, H, movefocus, l"
 					"ALT_R, L, movefocus, r"
 					"ALT_R, K, movefocus, u"
