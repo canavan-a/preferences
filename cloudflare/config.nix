@@ -7,7 +7,6 @@
 				credentialsFile = config.sops.secrets.cloudflared-creds.path;
 				default = "http_status:404";
 				ingress = ingress;
-				};
 			};
 		};
 	};
