@@ -98,8 +98,9 @@
 
 		wayland.windowManager.hyprland = {
 			enable = true;
-			# package/portal come from the NixOS programs.hyprland module (nixpkgs)
-			package = null;
+			# same nixpkgs package the system installs; keeps onChange auto-reload working.
+			# portal stays with the NixOS programs.hyprland module.
+			package = pkgs.hyprland;
 			portalPackage = null;
 			settings = {
 				monitor = [
