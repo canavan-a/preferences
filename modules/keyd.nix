@@ -12,7 +12,7 @@
           up = "noop";
           down = "noop";
         };
-        leftalt = {
+        alt = {
           h = "left";
           l = "right";
           j = "down";
@@ -38,7 +38,7 @@
           apostrophe = "C-backspace";
           space = "layer(space_layer)";
         };
-        "leftalt+shift" = {
+        "alt+shift" = {
           h = "S-left";
           l = "S-right";
           j = "S-down";
