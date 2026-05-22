@@ -36,7 +36,7 @@
           backslash = "delete";
           semicolon = "backspace";
           apostrophe = "C-backspace";
-          space = "layer(space_layer)";
+          space = "layer(space_held)";
         };
         "alt+shift" = {
           h = "S-left";
@@ -48,7 +48,8 @@
           u = "S-pagedown";
           i = "S-pageup";
         };
-        space_layer = {
+        space_held = { };
+        "alt+space_held" = {
           a = "1";
           s = "2";
           d = "3";
