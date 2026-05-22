@@ -12,6 +12,7 @@
 		hyprpaper
 		hypridle
 		brightnessctl
+		wev
 	];
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
@@ -29,7 +30,7 @@
 
 
 	services.blueman.enable = true;
-
+	# services.logind.lidSwitch = "sudo systemctl suspend";
 	security.sudo.extraRules = [{
 	  commands = [{
 	    command = "/run/current-system/sw/bin/systemctl suspend";
@@ -180,6 +181,7 @@
 					"ALT_R SHIFT, O, resizeactive, 0 -50"
 					"ALT_R SHIFT, P, resizeactive, 0 50"
 				];
+				bindl = [", switch:on:Lid Switch, exec, hyprlock & sudo systemctl suspend"];				
 				env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
 				input = {
 					accel_profile = "flat";
