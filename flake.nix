@@ -38,6 +38,7 @@
 				nixos-hardware.nixosModules.framework-16-7040-amd
 				./hardware-configuration-framework-16.nix
 				./modules/desktop.nix
+				./modules/work.nix
 				./modules/keyd.nix
 				./modules/dir.nix
 				./modules/micro.nix
