@@ -81,6 +81,8 @@
 		tmux
 		ripgrep
 		ffmpeg
+		pciutils
+		usbutils
 	];
 
 	# Open ports in the firewall.
