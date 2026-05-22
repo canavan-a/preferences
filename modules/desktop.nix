@@ -15,6 +15,9 @@
 		brightnessctl
 	];
 
+
+	services.blueman.enable = true;
+
 	# programs.waybar.enable = true;
 	stylix.enable = true;
 	stylix.polarity = "dark";
@@ -31,6 +34,7 @@
 		programs.swayimg.enable = true;
 		programs.mpv.enable = true;
 		services.hyprpaper.enable = true;
+		services.hyprsunset.enable = true;
 		programs.kitty.enable = true;
 		programs.waybar.enable = true;
 		services.hypridle = {
