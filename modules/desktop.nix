@@ -15,6 +15,34 @@
 		brightnessctl
 	];
 
+	boot.kernelPackages = pkgs.linuxPackagesFor (
+	  pkgs.linux_latest.override {
+	    argsOverride = rec {
+	      version = "7.0.6";
+	      modDirVersion = "7.0.6";
+	      src = pkgs.fetchurl {
+	        url = "mirror://kernel/linux/kernel/v7.x/linux-${version}.tar.xz";
+	        sha256 = "08vm18wx6399phzgr3wz94yga3ab4fyca79445ygvbspm904996b";
+	      };
+	    };
+	  }
+	);
+
+
+	services.blueman.enable = true;
+
+	security.sudo.extraRules = [{
+	  commands = [{
+	    command = "/run/current-system/sw/bin/systemctl suspend";
+	    options = [ "NOPASSWD" ];
+	  }
+	  {
+	  	command = "/run/current-system/sw/bin/brightnessctl";
+	  	options = [ "NOPASSWD" ];
+	  }];
+	  users = [ "nixos" ];
+	}];
+	
 	# programs.waybar.enable = true;
 	stylix.enable = true;
 	stylix.polarity = "dark";
@@ -31,12 +59,18 @@
 		programs.swayimg.enable = true;
 		programs.mpv.enable = true;
 		services.hyprpaper.enable = true;
+		services.mako.enable = true;
+		services.hyprsunset.enable = true;
 		programs.kitty.enable = true;
 		programs.waybar.enable = true;
 		services.hypridle = {
 			enable = true;
 			settings = {
 				listener = [
+					{
+						timeout = 2000;
+						on-timeout = "sudo systemctl suspend";
+					}
 					{
 						timeout = 1800;
 						on-timeout = "hyprlock";
@@ -177,7 +211,9 @@
 	programs.hyprland.enable = true;
 
 	programs.bash.shellAliases = {
-		sunset = "pkill hyprsunset; sleep 0.5 && nohup hyprsunset -t";
-		daylight = "pkill hyprsunset;";
+		sunset = "pkill hyprsunset; sleep 0.5 && setsid hyprsunset -t 2000 $1 & echo";
+		daylight = "pkill hyprsunset; echo;";
+		bup = "sudo brightnessctl set 10%+"; 
+		bdown = "sudo brightnessctl set 10%-";
 	};
 }

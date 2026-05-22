@@ -81,6 +81,8 @@
 		tmux
 		ripgrep
 		ffmpeg
+		pciutils
+		usbutils
 	];
 
 	# Open ports in the firewall.
@@ -100,7 +102,7 @@
 
 	services.openssh.enable = true;
 
-	services.tor.enable = true;
+	# services.tor.enable = true;
 
 
 	programs.bash.shellAliases = {
