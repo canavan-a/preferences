@@ -13,6 +13,7 @@
 		hypridle
 		brightnessctl
 		wev
+		wl-clipboard
 	];
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
@@ -28,7 +29,8 @@
 	  }
 	);
 
-
+	users.users.nixos.extraGroups = [ "video" ];
+		
 	services.blueman.enable = true;
 	# services.logind.lidSwitch = "sudo systemctl suspend";
 	security.sudo.extraRules = [{
@@ -62,8 +64,18 @@
 		services.hyprpaper.enable = true;
 		services.mako.enable = true;
 		services.hyprsunset.enable = true;
-		programs.kitty.enable = true;
 		programs.waybar.enable = true;
+
+		programs.kitty = {
+			enable = true;
+			settings.confirm_os_window_close = 0;
+			keybindings = {
+				"ctrl+shift+left" = "no_op";
+				"ctrl+shift+right" = "no_op";
+				"ctrl+backspace" = "send_text all \\x17";
+			};
+		};
+		
 		services.hypridle = {
 			enable = true;
 			settings = {
@@ -131,7 +143,9 @@
 			enable = true;
 			package = pkgs.vscodium;
 		};
-	  	programs.kitty.settings.confirm_os_window_close = 0;
+
+		
+
 
 		wayland.windowManager.hyprland = {
 			enable = true;
@@ -175,14 +189,30 @@
 					"ALT_R SHIFT, F, movetoworkspace, 4"
 					"ALT_R SHIFT, G, movetoworkspace, 5"
 					"ALT_R, Space, togglefloating,"
+					"ALT_R, Tab, pin,"
 					"ALT_R, Return, fullscreen,"
 					"ALT_R SHIFT, E, exec, hyprlock"
-					"ALT_R, O, resizeactive, -50 0"
-					"ALT_R, P, resizeactive, 50 0"
-					"ALT_R SHIFT, O, resizeactive, 0 -50"
-					"ALT_R SHIFT, P, resizeactive, 0 50"
+					# "ALT_R, O, resizeactive, -50 0"
+					# "ALT_R, P, resizeactive, 50 0"
+					# "ALT_R SHIFT, O, resizeactive, 0 -50"
+					# "ALT_R SHIFT, P, resizeactive, 0 50"
 					"ALT_R, R, exec, fuzzel"
+					"ALT_R, M, cyclenext,"
+					"ALT_R, N, cyclenext, prev"
+					", XF86AudioRaiseVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%+"
+					", XF86AudioLowerVolume, exec, wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-"
+					", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
+					"SHIFT, XF86AudioRaiseVolume, exec, brightnessctl set 5%+"
+					"SHIFT, XF86AudioLowerVolume, exec, brightnessctl set 5%-"
 				];
+
+				binde = [
+				  "ALT_R, O, resizeactive, -50 0"
+				  "ALT_R, P, resizeactive, 50 0"
+				  "ALT_R SHIFT, O, resizeactive, 0 -50"
+				  "ALT_R SHIFT, P, resizeactive, 0 50"
+				];
+				
 				bindl = [", switch:on:Lid Switch, exec, hyprlock & sudo systemctl suspend"];				
 				env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
 				input = {
