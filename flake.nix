@@ -42,9 +42,9 @@
 				./modules/dir.nix
 				./modules/micro.nix
 				(import ./cloudflare/config.nix { 
-					uuid = "d49c6f4d-1a09-4071-a495-cacbf3f80ab8";
+					uuid = "62a8869d-2c77-4932-b0f8-36266cf7cedf";
 					ingress = {
-						"nixos.aidan.house".service = "ssh://127.0.0.1:22";
+						"framework.aidan.house".service = "ssh://127.0.0.1:22";
 					};
 				})
 				home-manager.nixosModules.home-manager
