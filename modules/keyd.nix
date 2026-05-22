@@ -11,7 +11,7 @@
           right = "noop";
           up = "noop";
           down = "noop";
-          space = "overload(space_layer, space)";
+          space = "layer(space_layer, space)";
         };
 
         alt = {

@@ -102,7 +102,7 @@
 
 	services.openssh.enable = true;
 
-	services.tor.enable = true;
+	# services.tor.enable = true;
 
 
 	programs.bash.shellAliases = {
