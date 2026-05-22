@@ -18,6 +18,14 @@
 
 	services.blueman.enable = true;
 
+	security.sudo.extraRules = [{
+	  commands = [{
+	    command = "/run/current-system/sw/bin/systemctl suspend";
+	    options = [ "NOPASSWD" ];
+	  }];
+	  users = [ "nixos" ];
+	}];
+	
 	# programs.waybar.enable = true;
 	stylix.enable = true;
 	stylix.polarity = "dark";
@@ -41,6 +49,10 @@
 			enable = true;
 			settings = {
 				listener = [
+					{
+						timeout = 2000;
+						on-timeout = "sudo systemctl suspend";
+					}
 					{
 						timeout = 1800;
 						on-timeout = "hyprlock";
@@ -181,7 +193,7 @@
 	programs.hyprland.enable = true;
 
 	programs.bash.shellAliases = {
-		sunset = "pkill hyprsunset; sleep 0.5 && nohup hyprsunset -t";
+		sunset = "pkill hyprsunset; sleep 0.5 && setsid hyprsunset -t 2000 $1 &";
 		daylight = "pkill hyprsunset;";
 	};
 }
