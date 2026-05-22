@@ -32,11 +32,12 @@
           b = "C-b";
           n = "C-n";
           d = "C-d";
+          p = "C-p";
           q = "esc";
           backslash = "delete";
           semicolon = "backspace";
           apostrophe = "C-backspace";
-          space = "layer(space_held)";
+          space = "layer(_space)";
         };
         "alt+shift" = {
           h = "S-left";
@@ -48,8 +49,8 @@
           u = "S-pagedown";
           i = "S-pageup";
         };
-        space_held = { };
-        "alt+space_held" = {
+        _space = { };
+        "alt+_space" = {
           a = "1";
           s = "2";
           d = "3";
