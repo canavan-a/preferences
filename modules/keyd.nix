@@ -11,10 +11,8 @@
           right = "noop";
           up = "noop";
           down = "noop";
-          space = "overload(space_layer, space)";
         };
-
-        alt = {
+        leftalt = {
           h = "left";
           l = "right";
           j = "down";
@@ -38,9 +36,9 @@
           backslash = "delete";
           semicolon = "backspace";
           apostrophe = "C-backspace";
+          space = "layer(space_layer)";
         };
-
-        "alt+shift" = {
+        "leftalt+shift" = {
           h = "S-left";
           l = "S-right";
           j = "S-down";
@@ -50,7 +48,6 @@
           u = "S-pagedown";
           i = "S-pageup";
         };
-
         space_layer = {
           a = "1";
           s = "2";
