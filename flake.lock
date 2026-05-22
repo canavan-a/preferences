@@ -166,11 +166,11 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1779155064,
-        "narHash": "sha256-dr7YlkX40IDoP56TKtZlTeFYJGKHI3QFXDCcO/YA13Q=",
+        "lastModified": 1779331862,
+        "narHash": "sha256-l4lTOTkBSENo/0SbCoWAa01aBDRnl9zGdDtVsM2oXoI=",
         "owner": "canavan-a",
         "repo": "home-server",
-        "rev": "576b2c9ac6a43d98c502898a2932a8726b3e7fd2",
+        "rev": "c9288975f3eace943de9ec93e507635f2ba91168",
         "type": "github"
       },
       "original": {
