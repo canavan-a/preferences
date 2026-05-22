@@ -56,6 +56,7 @@
 	'';
 
 	home-manager.users.nixos = {
+		programs.fuzzel.enable = true;
 		programs.swayimg.enable = true;
 		programs.mpv.enable = true;
 		services.hyprpaper.enable = true;
@@ -180,6 +181,7 @@
 					"ALT_R, P, resizeactive, 50 0"
 					"ALT_R SHIFT, O, resizeactive, 0 -50"
 					"ALT_R SHIFT, P, resizeactive, 0 50"
+					"ALT_R, R, exec, fuzzel"
 				];
 				bindl = [", switch:on:Lid Switch, exec, hyprlock & sudo systemctl suspend"];				
 				env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
