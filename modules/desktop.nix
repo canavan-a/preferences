@@ -3,7 +3,6 @@
 { inputs, config, pkgs, lib, ... }:
 {
 	environment.systemPackages = with pkgs; [
-		wayvnc
 		kitty
 		hyprcursor
 		adwaita-icon-theme
@@ -146,7 +145,6 @@
 				];
 				exec-once = [
 				"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
-				"wayvnc --render-cursor 0.0.0.0"
 				"waybar"
 				"hyprpaper"
 				"hypridle > /tmp/hypridle.log 2>&1"
