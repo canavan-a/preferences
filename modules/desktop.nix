@@ -175,4 +175,9 @@
 	environment.sessionVariables.WAYLAND_DISPLAY = "wayland-1";
 
 	programs.hyprland.enable = true;
+
+	programs.bash.shellAliases = {
+		sunset = "pkill hyprsunset; sleep 0.5 && nohup hyprsunset -t";
+		daylight = "pkill hyprsunset;";
+	};
 }
