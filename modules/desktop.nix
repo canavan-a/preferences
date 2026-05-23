@@ -16,6 +16,7 @@
 		wl-clipboard
 		nerd-fonts.jetbrains-mono
 		networkmanagerapplet
+		libnotify
 	];
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
@@ -67,7 +68,10 @@
 		programs.swayimg.enable = true;
 		programs.mpv.enable = true;
 		services.hyprpaper.enable = true;
-		services.mako.enable = true;
+		services.mako = {
+			enable = true;
+			defaultTimeout = 2000;	
+		};
 		services.hyprsunset.enable = true;
 		home.file.".config/fastfetch/config.jsonc".text = ''
 				{
@@ -250,6 +254,7 @@
 				"nm-applet --indicator"
 				"hypridle > /tmp/hypridle.log 2>&1"
 				"hyprsunset"
+				"mako"
 				 ];
 				bind = [
 					"ALT_R, T, exec, kitty"
