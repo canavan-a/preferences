@@ -103,15 +103,27 @@
 		'';
 		programs.waybar = {
 			enable = true;
+			style = ''
+				#custom-nix {
+					font-size: 25px;
+					padding: 1px 8px 1px 8px;
+				}
+			'';
 			settings = [{
 				# spacing = 10;
 
+				modules-left = [ "custom/nix" ];
 				modules-center = [ "clock" ];
 				modules-right = [ "bluetooth" "pulseaudio" "battery" "tray" "network" ];
 
 				"clock" = {
 				  format = "{:%I:%M %p}";
 				  tooltip-format = "<big>{:%B %Y}</big>\n<tt><small>{calendar}</small></tt>";
+				};
+
+				"custom/nix" = {
+					format = "󱄅";
+					tooltip = false;
 				};
 
 				"bluetooth" = {
