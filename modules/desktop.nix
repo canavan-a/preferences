@@ -8,12 +8,14 @@
 		adwaita-icon-theme
 		brave
 		pulsemixer
-		waybar
+		# waybar
 		hyprpaper
 		hypridle
 		brightnessctl
 		wev
 		wl-clipboard
+		nerd-fonts.jetbrains-mono
+		networkmanagerapplet
 	];
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
@@ -45,10 +47,13 @@
 	  users = [ "nixos" ];
 	}];
 	
-	# programs.waybar.enable = true;
 	stylix.enable = true;
 	stylix.polarity = "dark";
 	stylix.image = ./wall/w6.jpg;
+	stylix.fonts.sansSerif = {
+		package = pkgs.nerd-fonts.jetbrains-mono;
+		name = "JetBrainsMono Nerd Font Mono";	
+	};
 	stylix.opacity.terminal = 0.8;
 	stylix.targets.chromium.enable = true;
 	stylix.base16Scheme = "${pkgs.base16-schemes}/share/themes/twilight.yaml";
@@ -64,7 +69,86 @@
 		services.hyprpaper.enable = true;
 		services.mako.enable = true;
 		services.hyprsunset.enable = true;
-		programs.waybar.enable = true;
+		home.file.".config/fastfetch/config.jsonc".text = ''
+				{
+					"modules": [
+					 "Title",
+					 "Separator",
+					 "OS",
+					 "Host",
+					 "Kernel",
+					 "Uptime",
+					 "Packages",
+					 "Shell",
+					 "Display",
+					 "WM",
+					 "Theme",
+					 "Cursor",
+					 "Terminal",
+					 "TerminalFont",
+					 "CPU",
+					 "GPU",
+					 "Memory",
+					 "Swap",
+					 "Disk",
+					 "LocalIP",
+					 "Battery",
+					 "Locale"
+					]
+				}
+		'';
+		programs.waybar = {
+			enable = true;
+			settings = [{
+				# spacing = 10;
+
+				modules-center = [ "clock" ];
+				modules-right = [ "bluetooth" "pulseaudio" "battery" "tray" "network" ];
+
+				"clock" = {
+				  format = "{:%I:%M %p}";
+				  tooltip-format = "<big>{:%B %Y}</big>\n<tt><small>{calendar}</small></tt>";
+				};
+
+				"bluetooth" = {
+				  on-click = "blueman-manager";
+				  format = " 󰂯 {num_connections} ";
+				  format-disabled = "󰂲";
+				  format-off = "󰂲";
+				  tooltip-format = "{controller_alias}\n{num_connections} connected";
+				  tooltip-format-connected = "{device_enumerate}";
+				  tooltip-format-enumerate-connected = "{device_alias}";
+				};
+
+				"battery" = {
+				  format = " {icon} {capacity}% ";
+				  format-charging =  " 󰂄 {capacity}% ";
+				  format-icons = [ "󰁺" "󰁻" "󰁼" "󰁽" "󰁾" "󰁿" "󰂀" "󰂁" "󰂂" "󰁹" ];
+				};
+
+				"pulseaudio" = {
+				  format = "{icon} {volume}%";
+				  format-icons = { default = [ "󰕿" "󰖀" "󰕾" ]; };
+				  scroll-step = 5;
+				};
+
+				"network" = {
+				  format-wifi = "{essid} ";
+				  format-disconnected = "Disconnected ";
+				};
+
+				"tray" = {
+				  spacing = 10;
+				};
+			}];	
+		};
+		stylix.targets.waybar = {
+			enable = true;	
+		};
+
+		# programs.waybar.settings.mainBar.modules-left = [ "hyprland/workspaces" ];
+
+		
 
 		programs.kitty = {
 			enable = true;
@@ -163,7 +247,9 @@
 				"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
 				"waybar"
 				"hyprpaper"
+				"nm-applet --indicator"
 				"hypridle > /tmp/hypridle.log 2>&1"
+				"hyprsunset"
 				 ];
 				bind = [
 					"ALT_R, T, exec, kitty"
@@ -204,6 +290,7 @@
 					", XF86AudioMute, exec, wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle"
 					"SHIFT, XF86AudioRaiseVolume, exec, brightnessctl set 5%+"
 					"SHIFT, XF86AudioLowerVolume, exec, brightnessctl set 5%-"
+					"SHIFT, XF86AudioMute, exec, pgrep hyprsunset && pkill hyprsunset || hyprsunset -t 2000"
 				];
 
 				binde = [

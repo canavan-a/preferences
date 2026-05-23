@@ -13,4 +13,8 @@
 			"d %h/notes 0755 - - -"
 		];		
 	};
+
+	systemd.tmpfiles.rules = [
+		"d /etc/nixos 0755 nixos users -"	
+	];
 }
