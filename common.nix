@@ -83,6 +83,7 @@
 		ffmpeg
 		pciutils
 		usbutils
+		platformio
 	];
 
 	# Open ports in the firewall.
