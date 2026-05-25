@@ -11,6 +11,7 @@
 			"d %h/other 0755 - - -"
 			"d %h/scripts 0755 - - -"
 			"d %h/notes 0755 - - -"
+			"d %h/run 0755 - - -"
 		];		
 	};
 

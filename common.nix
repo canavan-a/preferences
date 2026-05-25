@@ -72,6 +72,8 @@
 	# $ nix search wget
 	environment.systemPackages = with pkgs; [
 		wget
+		mullvad
+		openvpn
 		fastfetch
 		git
 		gh
@@ -84,6 +86,8 @@
 		pciutils
 		usbutils
 		platformio
+		nodejs
+		tree
 	];
 
 	# Open ports in the firewall.

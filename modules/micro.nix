@@ -16,7 +16,7 @@
 
 		home.file.".config/micro/bindings.json".text = builtins.toJSON {
 		  "Alt-/" = "lua:comment.comment";
-		  "CtrlBackspace" = "DeleteWordLeft";
+		  "CtrlW" = "DeleteWordLeft";
 		  "CtrlUnderscore" = "lua:comment.comment";
 		  "Escape" = "command:quit";
 		};
