@@ -70,7 +70,7 @@
 		services.hyprpaper.enable = true;
 		services.mako = {
 			enable = true;
-			defaultTimeout = 2000;	
+			defaultTimeout = 2000;
 		};
 		services.hyprsunset.enable = true;
 		home.file.".config/fastfetch/config.jsonc".text = ''
