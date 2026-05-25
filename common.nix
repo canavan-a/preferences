@@ -108,7 +108,7 @@
 	services.openssh.enable = true;
 
 	# services.tor.enable = true;
-
+	services.mullvad-vpn.enable = true;
 
 	programs.bash.shellAliases = {
 	};

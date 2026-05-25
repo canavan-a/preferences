@@ -32,7 +32,7 @@
 	  }
 	);
 
-	users.users.nixos.extraGroups = [ "video" ];
+	users.users.nixos.extraGroups = [ "video" "dialout" ];
 		
 	services.blueman.enable = true;
 	# services.logind.lidSwitch = "sudo systemctl suspend";
