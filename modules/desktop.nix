@@ -17,6 +17,7 @@
 		nerd-fonts.jetbrains-mono
 		networkmanagerapplet
 		libnotify
+		glow
 	];
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
