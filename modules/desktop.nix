@@ -18,6 +18,8 @@
 		networkmanagerapplet
 		libnotify
 		glow
+		cura-appimage
+		orca-slicer
 	];
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
@@ -109,13 +111,16 @@
 					font-size: 25px;
 					padding: 1px 8px 1px 8px;
 				}
+				#tray {
+					padding-right: 10px;
+				}
 			'';
 			settings = [{
 				# spacing = 10;
 
 				modules-left = [ "custom/nix" ];
 				modules-center = [ "clock" ];
-				modules-right = [ "bluetooth" "pulseaudio" "battery" "tray" "network" ];
+				modules-right = [ "bluetooth" "pulseaudio" "battery" "tray" ];
 
 				"clock" = {
 				  format = "{:%I:%M %p}";
@@ -147,11 +152,6 @@
 				  format = "{icon} {volume}%";
 				  format-icons = { default = [ "󰕿" "󰖀" "󰕾" ]; };
 				  scroll-step = 5;
-				};
-
-				"network" = {
-				  format-wifi = "{essid} ";
-				  format-disconnected = "Disconnected ";
 				};
 
 				"tray" = {
