@@ -88,6 +88,7 @@
 		platformio
 		nodejs
 		tree
+		unzip
 	];
 
 	# Open ports in the firewall.
