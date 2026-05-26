@@ -89,6 +89,7 @@
 		nodejs
 		tree
 		unzip
+		iw
 	];
 
 	# Open ports in the firewall.
