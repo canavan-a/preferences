@@ -31,6 +31,12 @@
   hardware.bluetooth.enable = true;
   hardware.enableAllFirmware = true;
   
+  hardware.wirelessRegulatoryDatabase = true;
+  boot.extraModprobeConfig = ''
+    options cfg80211 ieee80211_regdom="US"
+  '';
+
+  networking.networkmanager.wifi.powersave = false;  
   nixpkgs.hostPlatform = lib.mkDefault "x86_64-linux";
   hardware.cpu.amd.updateMicrocode = lib.mkDefault config.hardware.enableRedistributableFirmware;
 }
