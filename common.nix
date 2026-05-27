@@ -8,6 +8,7 @@
 	
 	environment.variables = {
 	  SOPS_AGE_KEY_FILE = "/etc/age/keys.txt";
+	  CGO_ENABLED = "0";
 	};
 
 	sops = {
@@ -71,6 +72,7 @@
 	# List packages installed in system profile. To search, run:
 	# $ nix search wget
 	environment.systemPackages = with pkgs; [
+		gnumake
 		wget
 		mullvad
 		openvpn
@@ -87,10 +89,12 @@
 		usbutils
 		platformio
 		nodejs
+		go
 		tree
 		unzip
 		iw
 		whois
+		gcc
 	];
 
 	# Open ports in the firewall.
