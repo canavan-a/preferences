@@ -120,6 +120,12 @@
 				#tray {
 					padding-right: 10px;
 				}
+				tooltip {
+					opacity: 1;
+				}
+				* {
+					transition: none;
+				}
 			'';
 			settings = [{
 				# spacing = 10;
@@ -129,8 +135,15 @@
 				modules-right = [ "bluetooth" "pulseaudio" "battery" "tray" ];
 
 				"clock" = {
-				  format = "{:%I:%M %p}";
-				  tooltip-format = "<big>{:%B %Y}</big>\n<tt><small>{calendar}</small></tt>";
+					format = "{:%I:%M %p}";
+					tooltip-format = "<tt>{calendar}</tt>";
+					  calendar = {
+					    mode = "month";
+					    on-scroll = 1;
+					    format = {
+					      today = "<span color='#cf6a4c'><b>{}</b></span>";
+					    };
+					};
 				};
 
 				"custom/nix" = {
