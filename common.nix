@@ -90,6 +90,7 @@
 		tree
 		unzip
 		iw
+		whois
 	];
 
 	# Open ports in the firewall.

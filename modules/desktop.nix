@@ -20,6 +20,10 @@
 		glow
 		cura-appimage
 		orca-slicer
+		claude-code
+		(google-cloud-sdk.withExtraComponents [ google-cloud-sdk.components.gke-gcloud-auth-plugin ])
+		kubectl
+		k9s
 	];
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
@@ -73,7 +77,9 @@
 		services.hyprpaper.enable = true;
 		services.mako = {
 			enable = true;
-			default-timeout = 2000;
+			settings = {
+				default-timeout = 2000;	
+			};
 		};
 		services.hyprsunset.enable = true;
 		home.file.".config/fastfetch/config.jsonc".text = ''
