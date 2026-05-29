@@ -1,6 +1,6 @@
 # desktop packages here
 
-{ inputs, config, pkgs, lib, ... }:
+{ inputs, config, pkgs, lib, open-lock,  ... }:
 {
 	environment.systemPackages = with pkgs; [
 		kitty
@@ -25,6 +25,14 @@
 		kubectl
 		k9s
 	];
+
+	services."open-lock" = {
+		          enable       = true;
+		          httpAddr     = ":8080";
+		          mqttPort     = 1883;
+		          pollInterval = "2s";
+		          manageBroker = false;
+		        };
 
 	boot.kernelPackages = pkgs.linuxPackagesFor (
 	  pkgs.linux_latest.override {
