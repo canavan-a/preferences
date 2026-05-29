@@ -15,10 +15,11 @@
 	    inputs.nixpkgs.follows = "nixpkgs";
 	};
 	home-server.url = "github:canavan-a/home-server"; 
+	open-lock.url = "github:canavan-a/open-lock";
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, sops-nix, home-manager, stylix, home-server, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, sops-nix, home-manager, stylix, home-server, open-lock, ... } @ inputs:
   	let 
 	serverBase = [
 		./common.nix
@@ -53,6 +54,7 @@
 				home-manager.nixosModules.home-manager
 				sops-nix.nixosModules.sops
 				stylix.nixosModules.stylix
+				open-lock.nixosModules.default
 			];	
 		};
 		server = nixpkgs.lib.nixosSystem {
