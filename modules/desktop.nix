@@ -34,19 +34,6 @@
 		          manageBroker = false;
 		        };
 
-	boot.kernelPackages = pkgs.linuxPackagesFor (
-	  pkgs.linux_latest.override {
-	    argsOverride = rec {
-	      version = "7.0.6";
-	      modDirVersion = "7.0.6";
-	      src = pkgs.fetchurl {
-	        url = "mirror://kernel/linux/kernel/v7.x/linux-${version}.tar.xz";
-	        sha256 = "08vm18wx6399phzgr3wz94yga3ab4fyca79445ygvbspm904996b";
-	      };
-	    };
-	  }
-	);
-
 	users.users.nixos.extraGroups = [ "video" "dialout" ];
 		
 	services.blueman.enable = true;
@@ -79,6 +66,7 @@
 	'';
 
 	home-manager.users.nixos = {
+		gtk.gtk4.theme = null;
 		programs.fuzzel.enable = true;
 		programs.swayimg.enable = true;
 		programs.mpv.enable = true;
@@ -90,6 +78,14 @@
 			};
 		};
 		services.hyprsunset.enable = true;
+
+
+		home.file.".config/VSCodium/User/settings.json".source =
+		  config.home-manager.users.nixos.lib.file.mkOutOfStoreSymlink
+		    "/home/nixos/.config/Code/User/settings.json";
+		home.file.".vscode-oss/extensions".source =
+				  config.home-manager.users.nixos.lib.file.mkOutOfStoreSymlink
+				    "/home/nixos/.vscode/extensions";		
 		home.file.".config/fastfetch/config.jsonc".text = ''
 				{
 					"modules": [
@@ -277,11 +273,13 @@
 
 		wayland.windowManager.hyprland = {
 			enable = true;
+			configType = "hyprlang";
 			# same nixpkgs package the system installs; keeps onChange auto-reload working.
 			# portal stays with the NixOS programs.hyprland module.
 			package = pkgs.hyprland;
 			portalPackage = null;
 			settings = {
+				disable_logs = false;
 				monitor = [
 					",preferred,auto,1"
 				# "HEADLESS-1,2560x1600,0x0,1"
@@ -366,7 +364,7 @@
 	services.greetd = {
 		enable = true;
 		settings.default_session = {
-			command = "${pkgs.hyprland}/bin/Hyprland";
+			command = "${pkgs.hyprland}/bin/start-hyprland";
 			user = "nixos";
 		};
 	};
