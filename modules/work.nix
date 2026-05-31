@@ -5,6 +5,6 @@
         environment.systemPackages = with pkgs; [
     		slack
     		postman
-    		wineWowPackages.stable
+    		wineWow64Packages.stable
         ];
 }
