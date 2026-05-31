@@ -79,13 +79,6 @@
 		};
 		services.hyprsunset.enable = true;
 
-
-		home.file.".config/VSCodium/User/settings.json".source =
-		  config.home-manager.users.nixos.lib.file.mkOutOfStoreSymlink
-		    "/home/nixos/.config/Code/User/settings.json";
-		home.file.".vscode-oss/extensions".source =
-				  config.home-manager.users.nixos.lib.file.mkOutOfStoreSymlink
-				    "/home/nixos/.vscode/extensions";		
 		home.file.".config/fastfetch/config.jsonc".text = ''
 				{
 					"modules": [
@@ -259,11 +252,8 @@
 
 		programs.hyprlock.settings = {};
 
-		stylix.targets.vscode.enable = true;
-		programs.vscode = {
-			enable = true;
-			package = pkgs.vscodium;
-		};
+		stylix.targets.vscodium.enable = true;
+		programs.vscodium.enable = true;
 
 		
 
