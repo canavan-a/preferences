@@ -8,7 +8,6 @@
 		adwaita-icon-theme
 		brave
 		pulsemixer
-		# waybar
 		hyprpaper
 		hypridle
 		brightnessctl
@@ -24,6 +23,7 @@
 		(google-cloud-sdk.withExtraComponents [ google-cloud-sdk.components.gke-gcloud-auth-plugin ])
 		kubectl
 		k9s
+		grimblast
 	];
 
 	services."open-lock" = {
@@ -35,7 +35,13 @@
 		        };
 
 	users.users.nixos.extraGroups = [ "video" "dialout" ];
-		
+
+	home-manager.users.nixos = {
+			systemd.user.tmpfiles.rules = [
+				"d %h/screenshots 0755 - - -"
+			];		
+		};
+			
 	services.blueman.enable = true;
 	# services.logind.lidSwitch = "sudo systemctl suspend";
 	security.sudo.extraRules = [{
@@ -284,7 +290,7 @@
 				bind = [
 					"ALT_R, T, exec, kitty"
 					"ALT_R, B, exec, brave"
-					"ALT_R, C, exec, codium"
+					"ALT_R, C, exec, grimblast copysave area ~/screenshots/$(date +%Y%m%d_%H%M%S).png"
 					"ALT_R SHIFT, Q, killactive,"
 					"ALT_R, H, movefocus, l"
 					"ALT_R, L, movefocus, r"
