@@ -45,6 +45,7 @@
 				./modules/dir.nix
 				./modules/micro.nix
 				./modules/mqtt-broker.nix
+				./modules/5gbandforce.nix
 				(import ./cloudflare/config.nix { 
 					uuid = "62a8869d-2c77-4932-b0f8-36266cf7cedf";
 					ingress = {
