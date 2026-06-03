@@ -35,7 +35,7 @@
 		        };
 
 	users.users.nixos.extraGroups = [ "video" "dialout" ];
-
+		
 	home-manager.users.nixos = {
 			systemd.user.tmpfiles.rules = [
 				"d %h/screenshots 0755 - - -"
@@ -80,7 +80,7 @@
 		services.mako = {
 			enable = true;
 			settings = {
-				default-timeout = 2000;	
+				default-timeout = 4000;	
 			};
 		};
 		services.hyprsunset.enable = true;

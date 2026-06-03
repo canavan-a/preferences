@@ -4,10 +4,10 @@
   environment.systemPackages = [
     (pkgs.stdenv.mkDerivation {
       pname = "cb-cli";
-      version = "2026.1.4";
+      version = "2026.1.5";
       src = pkgs.fetchurl {
-        url = "https://github.com/ClearBlade/cb-cli/releases/download/2026.1.4/cb-cli-linux-amd64.tar.gz";
-        sha256 = "ab0fb42567fa0b243aeef03c7c9aede3335b1b56afc4fcba87c6a2ec3a7b2794";
+        url = "https://github.com/ClearBlade/cb-cli/releases/download/2026.1.5/cb-cli-linux-amd64.tar.gz";
+        sha256 = "75b55524d75b2be3bd47190e01f28f8f5059e3694af4cf61e825a072892d3eed";
       };
       sourceRoot = ".";
       nativeBuildInputs = [ pkgs.autoPatchelfHook ];
