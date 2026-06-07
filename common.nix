@@ -97,6 +97,7 @@
 		gcc
 		openssl
 		cmake
+		v4l-utils
 	];
 
 	# Open ports in the firewall.
