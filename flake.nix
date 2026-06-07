@@ -11,7 +11,7 @@
 	};
 	stylix = {
 	    # url = "github:canavan-a/stylix/stable-base";
-		url = "github:nix-community/stylix";	
+		url = "github:nix-community/stylix/release-26.05";	
 	    inputs.nixpkgs.follows = "nixpkgs";
 	};
 	home-server.url = "github:canavan-a/home-server"; 

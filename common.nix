@@ -95,6 +95,8 @@
 		iw
 		whois
 		gcc
+		openssl
+		cmake
 	];
 
 	# Open ports in the firewall.

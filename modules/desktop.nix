@@ -24,6 +24,8 @@
 		kubectl
 		k9s
 		grimblast
+		bruno
+		kicad
 	];
 
 	services."open-lock" = {
@@ -57,6 +59,7 @@
 	}];
 	
 	stylix.enable = true;
+	stylix.enableReleaseChecks = false;
 	stylix.polarity = "dark";
 	stylix.image = ./wall/w6.jpg;
 	stylix.fonts.sansSerif = {
@@ -72,7 +75,7 @@
 	'';
 
 	home-manager.users.nixos = {
-		gtk.gtk4.theme = null;
+		stylix.enableReleaseChecks = false;
 		programs.fuzzel.enable = true;
 		programs.swayimg.enable = true;
 		programs.mpv.enable = true;
@@ -115,7 +118,7 @@
 			style = ''
 				#custom-nix {
 					font-size: 25px;
-					padding: 1px 8px 1px 8px;
+					padding: 1px 8px 1px 10px;
 				}
 				#tray {
 					padding-right: 10px;
@@ -126,14 +129,30 @@
 				* {
 					transition: none;
 				}
+				#workspaces button {
+				    padding: 0 8px;
+				    border-bottom: 2px solid transparent;
+				    border-radius: 0;
+				}
+				
+				#workspaces button.active {
+				    border-bottom: 2px solid;
+				}
 			'';
 			settings = [{
 				# spacing = 10;
 
-				modules-left = [ "custom/nix" ];
-				modules-center = [ "clock" ];
+				modules-left = [ "custom/nix" "clock" ];
+				modules-center = [ "hyprland/workspaces" ];
 				modules-right = [ "bluetooth" "pulseaudio" "battery" "tray" ];
 
+				"hyprland/workspaces" = {
+					format = "{icon}";
+					persistent-workspaces = {
+						"*" = 5;
+					};
+				};
+				
 				"clock" = {
 					format = "{:%I:%M %p}";
 					tooltip-format = "<tt>{calendar}</tt>";
