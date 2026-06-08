@@ -98,6 +98,8 @@
 		openssl
 		cmake
 		v4l-utils
+		opencv
+		httplib
 	];
 
 	# Open ports in the firewall.
