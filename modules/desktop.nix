@@ -23,6 +23,7 @@
 		(google-cloud-sdk.withExtraComponents [ google-cloud-sdk.components.gke-gcloud-auth-plugin ])
 		kubectl
 		k9s
+		kubernetes-helm
 		grimblast
 		bruno
 		kicad
@@ -35,7 +36,7 @@
 		          pollInterval = "2s";
 		          manageBroker = false;
 		        };
-
+	
 	users.users.nixos.extraGroups = [ "video" "dialout" ];
 		
 	home-manager.users.nixos = {

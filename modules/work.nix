@@ -5,5 +5,6 @@
         environment.systemPackages = with pkgs; [
     		slack
     		wineWow64Packages.stable
+    		ansible
         ];
 }

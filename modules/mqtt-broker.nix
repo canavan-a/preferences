@@ -1,7 +1,8 @@
 {config, pkgs, lib, ...}:
 {
 	environment.systemPackages = with pkgs; [
-		mosquitto	
+		mosquitto
+		mosquitto.dev	
 	];
 		
 	services.mosquitto = {
