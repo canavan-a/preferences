@@ -129,6 +129,11 @@
 fastfetch
 nixrb() { sudo nixos-rebuild switch --flake /etc/nixos#"$1"; }
 nixsync() { cd /etc/nixos && sudo git pull origin main; }
+nixdiff() {
+  local steps="''${1:-1}"
+  local cur=$(readlink /nix/var/nix/profiles/system | grep -oP '\d+')
+  nix store diff-closures "/nix/var/nix/profiles/system-$((cur-steps))-link" /run/current-system
+}
 '';
 
 }
