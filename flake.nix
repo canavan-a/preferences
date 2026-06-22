@@ -16,6 +16,7 @@
 	};
 	home-server.url = "github:canavan-a/home-server"; 
 	open-lock.url = "github:canavan-a/open-lock";
+	claude-code.url = "github:sadjow/claude-code-nix";
   };
 
 

@@ -2,6 +2,9 @@
 
 { inputs, config, pkgs, lib, open-lock,  ... }:
 {
+
+	nixpkgs.overlays = [ inputs.claude-code.overlays.default ];
+
 	environment.systemPackages = with pkgs; [
 		kitty
 		hyprcursor
@@ -19,7 +22,6 @@
 		glow
 		cura-appimage
 		orca-slicer
-		claude-code
 		(google-cloud-sdk.withExtraComponents [ google-cloud-sdk.components.gke-gcloud-auth-plugin ])
 		kubectl
 		k9s
@@ -27,6 +29,7 @@
 		grimblast
 		bruno
 		kicad
+		claude-code
 	];
 
 	services."open-lock" = {
