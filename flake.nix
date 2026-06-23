@@ -3,6 +3,7 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs?ref=nixos-26.05";
+    nixpkgs-unstable.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     nixos-hardware.url = "github:NixOS/nixos-hardware";
 	sops-nix.url = "github:Mic92/sops-nix";
 	home-manager = {
@@ -20,8 +21,12 @@
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, sops-nix, home-manager, stylix, home-server, open-lock, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, sops-nix, home-manager, stylix, home-server, open-lock, nixpkgs-unstable, ... } @ inputs:
   	let 
+  	unstable = import nixpkgs-unstable {
+  		system = "x86_64-linux";
+  		config.allowUnfree = true;
+  	};
 	serverBase = [
 		./common.nix
 		./modules/server.nix
@@ -34,7 +39,7 @@
 	nixosConfigurations = {
 		desktop = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
-			specialArgs = {inherit inputs; };
+			specialArgs = {inherit inputs unstable; };
 			modules = [
 				./common.nix 
 				nixos-hardware.nixosModules.framework-16-7040-amd

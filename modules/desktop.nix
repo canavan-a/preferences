@@ -1,6 +1,6 @@
 # desktop packages here
 
-{ inputs, config, pkgs, lib, open-lock,  ... }:
+{ inputs, config, pkgs, lib, open-lock, unstable,  ... }:
 {
 
 	nixpkgs.overlays = [ inputs.claude-code.overlays.default ];
@@ -30,6 +30,8 @@
 		bruno
 		kicad
 		claude-code
+		awscli2
+		unstable.opencode
 	];
 
 	services."open-lock" = {
