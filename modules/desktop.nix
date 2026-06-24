@@ -337,7 +337,7 @@
 					"ALT_R SHIFT, G, movetoworkspace, 5"
 					"ALT_R, Space, togglefloating,"
 					"ALT_R, Tab, pin,"
-					"ALT_R, Return, fullscreen,"
+					"ALT_R, Return, fullscreen, 1"
 					"ALT_R SHIFT, E, exec, hyprlock"
 					# "ALT_R, O, resizeactive, -50 0"
 					# "ALT_R, P, resizeactive, 50 0"
