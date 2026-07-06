@@ -136,6 +136,11 @@ nixdiff() {
   local old=$((new-1))
   nix store diff-closures "/nix/var/nix/profiles/system-$old-link" "/nix/var/nix/profiles/system-$new-link"
 }
+nixpv() {
+  local out="/tmp/nixpreview-result"
+  nix build --out-link "$out" /etc/nixos#nixosConfigurations."$1".config.system.build.toplevel || return 1
+  nix store diff-closures /run/current-system "$out"
+}
 '';
 
 }

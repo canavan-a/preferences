@@ -31,7 +31,7 @@
 		kicad
 		claude-code
 		awscli2
-		unstable.opencode
+		unstable.pi-coding-agent
 	];
 
 	services."open-lock" = {
@@ -47,7 +47,17 @@
 	home-manager.users.nixos = {
 			systemd.user.tmpfiles.rules = [
 				"d %h/screenshots 0755 - - -"
-			];		
+			];
+
+			programs.opencode = {
+				enable = true;
+				package = unstable.opencode;
+				settings = {
+					permission = {
+						edit = "ask";
+					};
+				};
+			};
 		};
 			
 	services.blueman.enable = true;
@@ -283,8 +293,9 @@
 
 		programs.hyprlock.settings = {};
 
-		stylix.targets.vscodium.enable = true;
-		programs.vscodium.enable = true;
+			stylix.targets.vscodium.enable = true;
+			programs.vscodium.enable = true;
+			home.packages = [ unstable.pi-coding-agent ];
 
 		
 
