@@ -1,6 +1,6 @@
 # desktop packages here
 
-{ inputs, config, pkgs, lib, open-lock, unstable,  ... }:
+{ inputs, config, pkgs, lib, open-lock, unstable, ... }:
 {
 
 	nixpkgs.overlays = [ inputs.claude-code.overlays.default ];
@@ -32,6 +32,7 @@
 		claude-code
 		awscli2
 		unstable.pi-coding-agent
+		inputs.fleetman.packages.x86_64-linux.fleetman
 	];
 
 	services."open-lock" = {

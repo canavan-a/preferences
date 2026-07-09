@@ -100,6 +100,7 @@
 		v4l-utils
 		opencv
 		httplib
+		pgcli
 	];
 
 	# Open ports in the firewall.

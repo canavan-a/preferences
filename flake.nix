@@ -18,10 +18,11 @@
 	home-server.url = "github:canavan-a/home-server"; 
 	open-lock.url = "github:canavan-a/open-lock";
 	claude-code.url = "github:sadjow/claude-code-nix";
+	fleetman.url = "github:canavan-a/fleetman";
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, sops-nix, home-manager, stylix, home-server, open-lock, nixpkgs-unstable, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, sops-nix, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, ... } @ inputs:
   	let 
   	unstable = import nixpkgs-unstable {
   		system = "x86_64-linux";
@@ -39,7 +40,7 @@
 	nixosConfigurations = {
 		desktop = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
-			specialArgs = {inherit inputs unstable; };
+			specialArgs = {inherit inputs unstable fleetman; };
 			modules = [
 				./common.nix 
 				nixos-hardware.nixosModules.framework-16-7040-amd
