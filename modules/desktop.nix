@@ -10,6 +10,7 @@
 		hyprcursor
 		adwaita-icon-theme
 		brave
+		terraform
 		pulsemixer
 		hyprpaper
 		hypridle
@@ -26,9 +27,11 @@
 		kubectl
 		k9s
 		kubernetes-helm
+		azure-cli
 		grimblast
 		bruno
 		kicad
+		jira-cli-go
 		claude-code
 		awscli2
 		unstable.pi-coding-agent
