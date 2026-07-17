@@ -142,6 +142,9 @@ nixpv() {
   nix build --out-link "$out" /etc/nixos#nixosConfigurations."$1".config.system.build.toplevel || return 1
   nix store diff-closures /run/current-system "$out"
 }
+nixclean() {
+  sudo nix-collect-garbage --delete-older-than 20d
+}
 '';
 
 }
