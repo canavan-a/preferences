@@ -91,13 +91,13 @@ in
 	];
 	networking.firewall.allowedTCPPorts = [ 8081 19000 19001 8090 ];
 
-	services."open-lock" = {
-		          enable       = true;
-		          httpAddr     = ":8080";
-		          mqttPort     = 1883;
-		          pollInterval = "2s";
-		          manageBroker = false;
-		        };
+	# services."open-lock" = {
+	# 	          enable       = true;
+	# 	          httpAddr     = ":8080";
+	# 	          mqttPort     = 1883;
+	# 	          pollInterval = "2s";
+	# 	          manageBroker = false;
+	# 	        };
 	
 	users.users.nixos.extraGroups = [ "video" "dialout" ];
 		

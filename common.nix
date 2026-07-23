@@ -145,6 +145,16 @@ nixpv() {
 nixclean() {
   sudo nix-collect-garbage --delete-older-than 20d
 }
+nixhelp() {
+  cat <<'EOF'
+nixrb <host>    Rebuild and switch to the flake config for <host>.
+nixsync         Pull the latest /etc/nixos config from origin main.
+nixdiff [n]     Diff closures between system generations (n back, default 0) and n+1 back.
+nixpv <host>    Build <host>'s config without switching and diff against the running system.
+nixclean        Garbage-collect generations older than 20 days.
+nixhelp         Show this list of custom nix commands.
+EOF
+}
 '';
 
 }
