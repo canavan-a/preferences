@@ -7,14 +7,7 @@
 	nix.settings.experimental-features = ["nix-command" "flakes"];
 	
 	environment.variables = {
-	  SOPS_AGE_KEY_FILE = "/etc/age/keys.txt";
 	  CGO_ENABLED = "0";
-	};
-
-	sops = {
-		age.keyFile = "/etc/age/keys.txt";
-		defaultSopsFile = ./secrets/secrets.yaml;
-		secrets.cloudflared-creds = {};	
 	};
 
 	# Bootloader.
@@ -80,7 +73,6 @@
 		git
 		gh
 		cloudflared
-		sops
 		age
 		tmux
 		ripgrep
