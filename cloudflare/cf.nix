@@ -7,15 +7,15 @@ let
 		TOKEN_FILE=${tokenFile}
 
 		usage() {
-			cat <<EOF
-		cf <command>
+			cat <<-EOF
+			cf <command>
 
-		  init <token>   Save a Cloudflare Tunnel token and enable+start the service.
-		  start          Enable and start the tunnel service.
-		  stop           Stop and disable the tunnel service.
-		  status         Show the tunnel service status.
-		  help           Show this message.
-		EOF
+			  init <token>   Save a Cloudflare Tunnel token and enable+start the service.
+			  start          Enable and start the tunnel service.
+			  stop           Stop and disable the tunnel service.
+			  status         Show the tunnel service status.
+			  help           Show this message.
+			EOF
 		}
 
 		require_root() {
@@ -68,8 +68,7 @@ in
 		description = "Cloudflare Tunnel (remotely managed)";
 		after = [ "network-online.target" ];
 		wants = [ "network-online.target" ];
-		# Not wantedBy multi-user.target: stays inert until `cf init`/`cf start`
-		# enables it, so a machine without a token yet still boots cleanly.
+		wantedBy = [ "multi-user.target" ];
 		serviceConfig = {
 			ExecStart = "${runTunnel}";
 			Restart = "on-failure";

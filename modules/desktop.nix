@@ -292,13 +292,26 @@ in
 			};
 		};
 		
+		systemd.user.services.sentry-mode = {
+			Unit = {
+				Description = "Sentry mode - inhibit idle lock/suspend and lid-switch suspend";
+			};
+			Service = {
+				Type = "simple";
+				ExecStart = "${pkgs.systemd}/bin/systemd-inhibit --what=sleep:handle-lid-switch --who=sentry-mode --why=Sentry-mode-active --mode=block ${pkgs.coreutils}/bin/sleep infinity";
+			};
+		};
+
 		services.hypridle = {
 			enable = true;
 			settings = {
+				general = {
+					ignore_dbus_inhibit = true;
+				};
 				listener = [
 					{
 						timeout = 2000;
-						on-timeout = "sudo systemctl suspend";
+						on-timeout = "sentry-exec sudo systemctl suspend";
 					}
 					{
 						timeout = 1800;
@@ -356,7 +369,23 @@ in
 
 			stylix.targets.vscodium.enable = true;
 			programs.vscodium.enable = true;
-			home.packages = [ unstable.pi-coding-agent ];
+			home.packages = [
+				unstable.pi-coding-agent
+				(pkgs.writeShellScriptBin "sentry-exec" ''
+					if systemctl --user is-active --quiet sentry-mode.service; then
+						exit 0
+					fi
+					exec "$@"
+				'')
+				(pkgs.writeShellScriptBin "sentry" ''
+					case "$1" in
+						on) systemctl --user start sentry-mode.service ;;
+						off) systemctl --user stop sentry-mode.service ;;
+						status) systemctl --user status sentry-mode.service --no-pager ;;
+						*) echo "usage: sentry {on|off|status}"; exit 1 ;;
+					esac
+				'')
+			];
 
 		
 
@@ -433,7 +462,7 @@ in
 				  "ALT_R SHIFT, P, resizeactive, 0 50"
 				];
 				
-				bindl = [", switch:on:Lid Switch, exec, hyprlock & sudo systemctl suspend"];				
+				bindl = [", switch:on:Lid Switch, exec, hyprlock & sentry-exec sudo systemctl suspend"];				
 				env = [ "XCURSOR_SIZE,12" "WLR_NO_HARDWARE_CURSORS,1" "XCURSOR_THEME,Adwaita" ];
 				input = {
 					accel_profile = "flat";
