@@ -93,6 +93,14 @@
 		opencv
 		httplib
 		pgcli
+		croc
+		magic-wormhole
+		gnupg
+		htop
+		fzf
+		jq
+		curl
+		bat
 	];
 
 	# Open ports in the firewall.

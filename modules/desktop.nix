@@ -453,6 +453,8 @@ in
 					"SHIFT, XF86AudioRaiseVolume, exec, brightnessctl set 5%+"
 					"SHIFT, XF86AudioLowerVolume, exec, brightnessctl set 5%-"
 					"SHIFT, XF86AudioMute, exec, pgrep hyprsunset && pkill hyprsunset || hyprsunset -t 2000"
+					"CTRL, XF86AudioRaiseVolume, exec, t=$(cat /tmp/hyprsunset_temp 2>/dev/null || echo 6000); t=$((t+200)); [ $t -gt 20000 ] && t=20000; echo $t > /tmp/hyprsunset_temp; hyprctl hyprsunset temperature $t"
+					"CTRL, XF86AudioLowerVolume, exec, t=$(cat /tmp/hyprsunset_temp 2>/dev/null || echo 6000); t=$((t-200)); [ $t -lt 1000 ] && t=1000; echo $t > /tmp/hyprsunset_temp; hyprctl hyprsunset temperature $t"
 				];
 
 				binde = [
