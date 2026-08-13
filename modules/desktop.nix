@@ -57,6 +57,7 @@ in
 		awscli2
 		unstable.pi-coding-agent
 		inputs.fleetman.packages.x86_64-linux.fleetman
+		inputs.spinnyfetch.packages.x86_64-linux.default
 	];
 	# expo stuff
 	programs.nix-ld.enable = true;
@@ -284,7 +285,11 @@ in
 
 		programs.kitty = {
 			enable = true;
-			settings.confirm_os_window_close = 0;
+			settings = {
+				confirm_os_window_close = 0;
+				allow_remote_control = "yes";
+				listen_on = "unix:/tmp/kitty-{kitty_pid}";
+			};
 			keybindings = {
 				"ctrl+shift+left" = "no_op";
 				"ctrl+shift+right" = "no_op";
@@ -385,6 +390,21 @@ in
 						*) echo "usage: sentry {on|off|status}"; exit 1 ;;
 					esac
 				'')
+				(pkgs.writeShellScriptBin "kitty-cwd" ''
+					set -euo pipefail
+					pid=$(hyprctl activewindow -j | jq -r 'select(.class == "kitty") | .pid')
+					if [ -z "''${pid:-}" ]; then
+						exec kitty
+					fi
+					socket="unix:/tmp/kitty-$pid"
+					cwd=$(kitty @ --to "$socket" ls 2>/dev/null \
+						| jq -r '.[0].tabs[] | select(.is_focused) | .windows[] | select(.is_focused) | .cwd' \
+						|| true)
+					if [ -z "''${cwd:-}" ]; then
+						exec kitty
+					fi
+					exec kitty --directory "$cwd"
+				'')
 			];
 
 		
@@ -415,6 +435,7 @@ in
 				 ];
 				bind = [
 					"ALT_R, T, exec, kitty"
+					"ALT_R SHIFT, T, exec, kitty-cwd"
 					"ALT_R, B, exec, brave"
 					"ALT_R, C, exec, grimblast copysave area ~/screenshots/$(date +%Y%m%d_%H%M%S).png"
 					"ALT_R SHIFT, Q, killactive,"

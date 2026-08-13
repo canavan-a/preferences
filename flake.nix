@@ -18,6 +18,7 @@
 	open-lock.url = "github:canavan-a/open-lock";
 	claude-code.url = "github:sadjow/claude-code-nix";
 	fleetman.url = "github:canavan-a/fleetman";
+	spinnyfetch.url = "github:canavan-a/spinnyfetch";
   };
 
 

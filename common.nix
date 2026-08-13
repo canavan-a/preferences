@@ -101,6 +101,7 @@
 		jq
 		curl
 		bat
+		wireguard-tools
 	];
 
 	# Open ports in the firewall.
