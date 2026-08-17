@@ -36,8 +36,16 @@ let
 	};
 in
 {
+	# Define a user account. Don't forget to set a password with ‘passwd’.
+	users.users."neo" = {
+		isNormalUser = true;
+		description = "neo";
+		extraGroups = [ "networkmanager" "wheel" ];
+		packages = with pkgs; [];
+	};
+
 	services.horus = {
-		enable = true;
+		enable = false;
 		repoUrl = "https://github.com/canavan-a/horus-33.git";
 		configFile = captureEyeConfig;
 		openFirewall = true;

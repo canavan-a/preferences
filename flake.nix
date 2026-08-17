@@ -95,6 +95,7 @@
 				# TODO: run `nixos-generate-config` on the target machine and
 				# add the resulting hardware-configuration file here, e.g.:
 				# ./hardware-configuration-neoHomeServer.nix
+				./hardware-configuration-neo.nix
 				./cloudflare/cf.nix
 				./modules/mqtt-broker.nix
 				horus-33.nixosModules.default
