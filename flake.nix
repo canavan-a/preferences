@@ -19,10 +19,14 @@
 	claude-code.url = "github:sadjow/claude-code-nix";
 	fleetman.url = "github:canavan-a/fleetman";
 	spinnyfetch.url = "github:canavan-a/spinnyfetch";
+	horus-33 = {
+		url = "github:canavan-a/horus-33";
+		inputs.nixpkgs.follows = "nixpkgs";
+	};
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, ... } @ inputs:
   	let 
   	unstable = import nixpkgs-unstable {
   		system = "x86_64-linux";
@@ -82,6 +86,19 @@
 			modules = serverBase ++ [
 				# hardware configuration file here
 				
+			];
+		};
+
+		neoHomeServer = nixpkgs.lib.nixosSystem {
+			system = "x86_64-linux";
+			modules = serverBase ++ [
+				# TODO: run `nixos-generate-config` on the target machine and
+				# add the resulting hardware-configuration file here, e.g.:
+				# ./hardware-configuration-neoHomeServer.nix
+				./cloudflare/cf.nix
+				./modules/mqtt-broker.nix
+				horus-33.nixosModules.default
+				./modules/neoHomeServer.nix
 			];
 		};
 		
