@@ -23,7 +23,7 @@ let
 			fps = 30;
 		};
 		serial = {
-			port = "/dev/ttyACM1";
+			port = "/dev/ttyACM0";
 		};
 		sink = {
 			rtsp_url = "rtsp://127.0.0.1:8554/eye";
