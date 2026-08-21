@@ -102,6 +102,7 @@
 		curl
 		bat
 		wireguard-tools
+		nmap
 	];
 
 	# Open ports in the firewall.

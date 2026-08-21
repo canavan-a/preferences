@@ -90,7 +90,8 @@ in
 		libxkbcommon
 		udev
 	];
-	networking.firewall.allowedTCPPorts = [ 8081 19000 19001 8090 ];
+	networking.firewall.allowedTCPPorts = [ 8081 19000 19001 8090 5173 8889 8189 ];
+	networking.firewall.allowedUDPPorts = [ 8189 ]; # horus-33 dev WebRTC ICE (mediamtx)
 
 	# services."open-lock" = {
 	# 	          enable       = true;
