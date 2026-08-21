@@ -28,12 +28,6 @@ let
 		sink = {
 			rtsp_url = "rtsp://127.0.0.1:8554/eye";
 		};
-		# The relay socket horus-server connects to (its --socket, set by the
-		# horus module). Without this key capture-eye never creates it, and the
-		# API sits in its reconnect loop with nothing on the other end.
-		ingress = {
-			socket_path = "/run/horus/control.sock";
-		};
 		clipping = {
 			enabled = true;
 			output_dir = "/var/lib/horus-capture-eye/clips";
