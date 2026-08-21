@@ -16,7 +16,7 @@ let
 	# those can renumber across reboots.
 	captureEyeConfig = pkgs.writers.writeJSON "capture-eye.json" {
 		capture = {
-			device = "/dev/video0";
+			device = "/dev/video1";
 			width = 1280;
 			height = 720;
 			fourcc = "MJPG";
