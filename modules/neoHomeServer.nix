@@ -16,14 +16,14 @@ let
 	# those can renumber across reboots.
 	captureEyeConfig = pkgs.writers.writeJSON "capture-eye.json" {
 		capture = {
-			device = "/dev/v4l/by-id/REPLACE_ME";
+			device = "/dev/video0";
 			width = 1280;
 			height = 720;
 			fourcc = "MJPG";
 			fps = 30;
 		};
 		serial = {
-			port = "/dev/serial/by-id/REPLACE_ME";
+			port = "/dev/ttyACM0";
 		};
 		sink = {
 			rtsp_url = "rtsp://127.0.0.1:8554/eye";
