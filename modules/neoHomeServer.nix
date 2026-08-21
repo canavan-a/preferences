@@ -44,8 +44,10 @@ in
 		packages = with pkgs; [];
 	};
 
+	networking.firewall.allowedTCPPorts = [ 33 ];
+
 	services.horus = {
-		enable = false;
+		enable = true;
 		repoUrl = "https://github.com/canavan-a/horus-33.git";
 		configFile = captureEyeConfig;
 		openFirewall = true;
