@@ -1,19 +1,20 @@
 { config, pkgs, lib, ... }:
 let
-	# capture-eye's config as a real Nix attrset instead of a hand-written
-	# JSON file — pkgs.writers.writeJSON renders it at build time, so it's
-	# Nix-managed like everything else here. Trade-off: a config change now
-	# needs a rebuild instead of `$EDITOR` + `systemctl restart` (the module's
-	# normal fast loop) — worth it for keeping it all in one place.
+	# capture-eye's *initial* config as a Nix attrset. Passed as seedConfigFile,
+	# so the module copies it to /etc/horus/capture-eye.json once — on the first
+	# activation where that file does not exist — and never overwrites it after.
+	# From then on the live config belongs to the host and `horusctl config`
+	# edits it in place, which is what keeps a camera or serial-port change from
+	# needing a commit and a rebuild. Editing the attrset below therefore only
+	# affects a machine that has not been activated yet; to change a running
+	# host, use horusctl.
 	#
-	# TODO: these device paths are placeholders. Find the real ones on the
-	# target machine with:
-	#   ls /dev/v4l/by-id/
-	#   capture-eye --list-formats --device /dev/videoN   (via `nix develop
-	#     horus-33` for the binary, or after the service is built once)
-	#   ls /dev/serial/by-id/
-	# and prefer the by-id symlinks over raw /dev/videoN or /dev/ttyACMN —
-	# those can renumber across reboots.
+	# Device paths here are a starting guess. On the host itself:
+	#   horusctl config devices                    # cameras + serial ports
+	#   horusctl config devices --device /dev/videoN   # formats that camera has
+	#   horusctl config set-video --device ... --restart
+	# Prefer the by-id symlinks over raw /dev/videoN or /dev/ttyACMN — those can
+	# renumber across reboots.
 	captureEyeConfig = pkgs.writers.writeJSON "capture-eye.json" {
 		capture = {
 			device = "/dev/video1";
@@ -49,7 +50,9 @@ in
 	services.horus = {
 		enable = true;
 		repoUrl = "https://github.com/canavan-a/horus-33.git";
-		configFile = captureEyeConfig;
+		# Seed, not the live path: configFile stays at its mutable default
+		# (/etc/horus/capture-eye.json) so horusctl can edit it.
+		seedConfigFile = captureEyeConfig;
 		openFirewall = true;
 	};
 }
