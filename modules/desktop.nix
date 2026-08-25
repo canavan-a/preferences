@@ -58,6 +58,7 @@ in
 		unstable.pi-coding-agent
 		inputs.fleetman.packages.x86_64-linux.fleetman
 		inputs.spinnyfetch.packages.x86_64-linux.default
+		goose
 	];
 	# expo stuff
 	programs.nix-ld.enable = true;
