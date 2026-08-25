@@ -258,11 +258,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1787693591,
-        "narHash": "sha256-yZNMAmNW9ynTMlvSVfbFMb2Q5sTwshIa0k8RWo2M/Q0=",
+        "lastModified": 1787694308,
+        "narHash": "sha256-5OtR+S3QXdNa51+mh9wFtuMPqcflpQJR4MWDah3ysvc=",
         "owner": "canavan-a",
         "repo": "horus-33",
-        "rev": "ce9e59df2be9f1d7fa8e950afafc440f7b93ddd0",
+        "rev": "a1901ed96b8fd58a5fb15297fc7653843ca46a9f",
         "type": "github"
       },
       "original": {
