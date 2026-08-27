@@ -47,6 +47,18 @@ in
 
 	networking.firewall.allowedTCPPorts = [ 33 ];
 
+	# VAAPI, so capture-eye can encode H.264 on the iGPU instead of burning the
+	# cores inference needs. Only makes the hardware available: capture-eye
+	# still encodes with libx264 until /etc/horus/capture-eye.json opts in with
+	# "hardware_encode": true (see capture-eye/docs/config.md). Nothing else is
+	# needed for the service to see it — its unit is unsandboxed and already
+	# carries the "render" group, and libva finds the driver under
+	# /run/opengl-driver.
+	hardware.graphics = {
+		enable = true;
+		extraPackages = with pkgs; [ intel-media-driver ];
+	};
+
 	services.horus = {
 		enable = true;
 		repoUrl = "https://github.com/canavan-a/horus-33.git";
