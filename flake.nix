@@ -89,17 +89,23 @@
 			];
 		};
 
-		neoHomeServer = nixpkgs.lib.nixosSystem {
+		neo = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
 			modules = serverBase ++ [
-				# TODO: run `nixos-generate-config` on the target machine and
-				# add the resulting hardware-configuration file here, e.g.:
-				# ./hardware-configuration-neoHomeServer.nix
 				./hardware-configuration-neo.nix
 				./cloudflare/cf.nix
 				./modules/mqtt-broker.nix
 				horus-33.nixosModules.default
 				./modules/neoHomeServer.nix
+			];
+		};
+
+		wrx = nixpkgs.lib.nixosSystem {
+			system = "x86_64-linux";
+			modules = serverBase ++ [
+				./hardware-configuration-wrx.nix
+				./cloudflare/cf.nix
+				./modules/wrx80-local-ai.nix
 			];
 		};
 		
