@@ -66,5 +66,9 @@ in
 		# (/etc/horus/capture-eye.json) so horusctl can edit it.
 		seedConfigFile = captureEyeConfig;
 		openFirewall = true;
+		# Deploys the capture-eye build with the OpenVINO backend compiled in.
+		# Only makes it *available* — which backend actually runs is
+		# inference.backend in /etc/horus/capture-eye.json.
+		openvino = true;
 	};
 }
