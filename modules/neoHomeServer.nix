@@ -45,7 +45,7 @@ in
 		packages = with pkgs; [];
 	};
 
-	networking.firewall.allowedTCPPorts = [ 33 ];
+	networking.firewall.allowedTCPPorts = [ 33 8080 ];
 
 	# VAAPI, so capture-eye can encode H.264 on the iGPU instead of burning the
 	# cores inference needs. Only makes the hardware available: capture-eye
@@ -70,5 +70,17 @@ in
 		# Only makes it *available* — which backend actually runs is
 		# inference.backend in /etc/horus/capture-eye.json.
 		openvino = true;
+	};
+
+	# open-lock web controller. mqtt-broker.nix already runs a local anonymous
+	# mosquitto on :1883, so don't let this module manage its own broker — just
+	# point at localhost. UI + lock API are served on :8080 (front it with the
+	# Cloudflare tunnel; auth stays at Cloudflare Access).
+	services.open-lock = {
+		enable = true;
+		manageBroker = false;
+		mqttBroker = "127.0.0.1";
+		mqttPort = 1883;
+		mqttAnon = true;
 	};
 }

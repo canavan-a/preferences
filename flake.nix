@@ -96,6 +96,7 @@
 				./cloudflare/cf.nix
 				./modules/mqtt-broker.nix
 				horus-33.nixosModules.default
+				open-lock.nixosModules.default
 				./modules/neoHomeServer.nix
 			];
 		};
