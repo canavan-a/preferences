@@ -409,6 +409,32 @@ in
 					fi
 					exec kitty --directory "$cwd"
 				'')
+				(pkgs.writeShellScriptBin "screenshot" ''
+					set -euo pipefail
+					dir="$HOME/screenshots"
+					mkdir -p "$dir"
+
+					adjectives=(happy sleepy fuzzy jolly snappy breezy sunny bouncy cozy peppy witty zippy mellow spunky cheery)
+					animals=(doggy kitty otter panda ferret bunny moose gecko finch koala llama walrus hedgy narwhal puffin)
+
+					slug="''${adjectives[RANDOM % ''${#adjectives[@]}]}-''${animals[RANDOM % ''${#animals[@]}]}"
+					name="''${slug}-$(date +%Y%m%d_%H%M%S).png"
+					path="$dir/$name"
+
+					grimblast copysave area "$path"
+
+					kitty --directory "$dir" -- bash -c '
+						name="'"$name"'"
+						trap ":" INT
+						echo "screenshot saved: $name"
+						echo
+						echo "running: swayimg $name"
+						echo
+						swayimg "$name" || true
+						trap - INT
+						exec bash
+					'
+				'')
 			];
 
 		
@@ -443,6 +469,7 @@ in
 					"ALT_R, B, exec, brave"
 					"ALT_R SHIFT, B, exec, brave-origin"
 					"ALT_R, C, exec, grimblast copysave area ~/screenshots/$(date +%Y%m%d_%H%M%S).png"
+					"ALT_R SHIFT, C, exec, screenshot"
 					"ALT_R SHIFT, Q, killactive,"
 					"ALT_R, H, movefocus, l"
 					"ALT_R, L, movefocus, r"
