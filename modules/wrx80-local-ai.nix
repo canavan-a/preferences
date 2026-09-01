@@ -40,6 +40,8 @@ let
 		NIXLLM_BACKEND="${defBackend}"
 		NIXLLM_EXTRA_ARGS="${defExtraArgs}"
 		NIXLLM_PARALLEL=""
+		NIXLLM_REASONING="off"
+		NIXLLM_SAMPLE_ARGS="--temp 0.7 --top-p 0.8 --top-k 20 --min-p 0 --presence-penalty 1.0"
 
 		if [ -f "${configF}" ]; then
 			# shellcheck disable=SC1090
@@ -76,6 +78,16 @@ let
 			PARALLEL_ARGS="--parallel $NIXLLM_PARALLEL"
 		fi
 
+		# --jinja is required for --reasoning-budget and correct Qwen3 reasoning parsing.
+		REASON_ARGS="--jinja"
+		case "$NIXLLM_REASONING" in
+			off|0)      REASON_ARGS="$REASON_ARGS --reasoning-budget 0" ;;
+			low)        REASON_ARGS="$REASON_ARGS --reasoning-budget 512" ;;
+			full|-1|"") REASON_ARGS="$REASON_ARGS --reasoning-budget -1" ;;
+			*[!0-9]*)   echo "nixllm: bad NIXLLM_REASONING: $NIXLLM_REASONING (off|low|full|<int>)" >&2; exit 1 ;;
+			*)          REASON_ARGS="$REASON_ARGS --reasoning-budget $NIXLLM_REASONING" ;;
+		esac
+
 		case "$NIXLLM_BACKEND" in
 			rocm)   SERVER="${llamaCppRocm}/bin/llama-server" ;;
 			vulkan) SERVER="${llamaCppVulkan}/bin/llama-server" ;;
@@ -93,6 +105,8 @@ let
 			$MMPROJ_ARGS \
 			$APIKEY_ARGS \
 			$PARALLEL_ARGS \
+			$REASON_ARGS \
+			$NIXLLM_SAMPLE_ARGS \
 			$NIXLLM_EXTRA_ARGS
 	'';
 
@@ -222,6 +236,8 @@ ART
 					echo "backend : $(cfg_get NIXLLM_BACKEND "${defBackend}")"
 					echo "endpoint: http://$(host):$(port)"
 					echo "ctx     : $(cfg_get NIXLLM_CTX "${defCtx}")   ngl: $(cfg_get NIXLLM_NGL "${defNgl}")   parallel: $(cfg_get NIXLLM_PARALLEL "auto")"
+					echo "reason  : $(cfg_get NIXLLM_REASONING "off")"
+					echo "sampling: $(cfg_get NIXLLM_SAMPLE_ARGS "(launch default)")"
 					if [ -s "$MODEL_F" ]; then
 						echo "model   : $(cat "$MODEL_F")"
 					else
@@ -288,6 +304,43 @@ ART
 						*)
 							cfg_set NIXLLM_PARALLEL "$1"
 							echo "nixllm: parallel -> $1"
+							;;
+					esac
+					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
+					;;
+				think)
+					if [ "$#" -eq 0 ]; then
+						echo "reasoning: $(cfg_get NIXLLM_REASONING "off")"
+						exit 0
+					fi
+					case "$1" in
+						off|low|full) cfg_set NIXLLM_REASONING "$1" ;;
+						*[!0-9]*) echo "usage: nixllm think [off|low|full|<n-tokens>]" >&2; exit 1 ;;
+						*) cfg_set NIXLLM_REASONING "$1" ;;
+					esac
+					echo "nixllm: reasoning -> $1"
+					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
+					;;
+				preset)
+					[ "$#" -eq 1 ] || { echo "usage: nixllm preset <code|think|clear>" >&2; exit 1; }
+					case "$1" in
+						code)
+							cfg_set NIXLLM_REASONING "off"
+							cfg_set NIXLLM_SAMPLE_ARGS "--temp 0.7 --top-p 0.8 --top-k 20 --min-p 0 --presence-penalty 1.0"
+							echo "nixllm: preset code (reasoning off, Qwen3 non-thinking sampling)"
+							;;
+						think)
+							cfg_set NIXLLM_REASONING "full"
+							cfg_set NIXLLM_SAMPLE_ARGS "--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0"
+							echo "nixllm: preset think (reasoning on, Qwen3 thinking sampling)"
+							;;
+						clear)
+							cfg_unset NIXLLM_REASONING
+							cfg_unset NIXLLM_SAMPLE_ARGS
+							echo "nixllm: preset cleared (back to launch defaults)"
+							;;
+						*)
+							echo "nixllm: unknown preset '$1' (code|think|clear)" >&2; exit 1
 							;;
 					esac
 					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
@@ -545,6 +598,8 @@ nixllm - manage the llama.cpp server on this host
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
   nixllm context [<n>]         get/set context window in tokens (restart to apply)
   nixllm p [<n>|clear]         get/set --parallel request slots (default: auto)
+  nixllm think [off|low|full|<n>]  Qwen3 reasoning budget (default: off)
+  nixllm preset <code|think|clear> apply a sampling + reasoning bundle
   nixllm mmproj [add <p>|clear] attach/detach a vision projector (mmproj gguf)
   nixllm apikey [show|set <k>|generate|clear]  require Bearer auth on the HTTP endpoint
   nixllm pull <hf-url>         download a gguf into $MODELS_DIR
@@ -557,6 +612,7 @@ nixllm - manage the llama.cpp server on this host
 Config file ($CONFIG_F), KEY="VALUE" per line, overrides derivation defaults:
   NIXLLM_HOST (${defHost})  NIXLLM_PORT (${defPort})  NIXLLM_CTX (${defCtx})
   NIXLLM_NGL (${defNgl})  NIXLLM_BACKEND (${defBackend})  NIXLLM_EXTRA_ARGS
+  NIXLLM_PARALLEL  NIXLLM_REASONING (off)  NIXLLM_SAMPLE_ARGS  (see 'preset')
 Gated 'nixllm pull' auth, in order: \$HF_TOKEN, $TOKEN_F, ~/.cache/huggingface/token.
 EOF
 					;;
