@@ -70,6 +70,14 @@ let
 			MODELS_DIR="${modelsDir}"
 			CONFIG_F="${configF}"
 			MODEL_F="${modelF}"
+			TOKEN_F="''${XDG_CONFIG_HOME:-$HOME/.config}/llm/token"
+
+			hf_token() {
+				# precedence: env -> 'llm login' file -> huggingface-cli login file
+				if [ -n "''${HF_TOKEN:-}" ]; then printf '%s' "$HF_TOKEN"; return; fi
+				if [ -s "$TOKEN_F" ]; then cat "$TOKEN_F"; return; fi
+				if [ -s "$HOME/.cache/huggingface/token" ]; then cat "$HOME/.cache/huggingface/token"; return; fi
+			}
 
 			cfg_get() {
 				# cfg_get KEY DEFAULT
@@ -180,9 +188,27 @@ let
 						ls -lh "$MODELS_DIR"/*.gguf
 					fi
 					;;
+				login)
+					if [ "$#" -eq 1 ]; then
+						tok="$1"
+					else
+						printf 'Hugging Face token (input hidden): ' >&2
+						read -rs tok
+						echo >&2
+					fi
+					[ -n "$tok" ] || { echo "llm: empty token" >&2; exit 1; }
+					mkdir -p "$(dirname "$TOKEN_F")"
+					( umask 077; printf '%s' "$tok" > "$TOKEN_F" )
+					echo "llm: token saved to $TOKEN_F"
+					;;
+				logout)
+					rm -f "$TOKEN_F"
+					echo "llm: removed $TOKEN_F"
+					;;
 				pull)
 					auth=()
-					[ -n "''${HF_TOKEN:-}" ] && auth=(-H "Authorization: Bearer $HF_TOKEN")
+					tok="$(hf_token)"
+					[ -n "$tok" ] && auth=(-H "Authorization: Bearer $tok")
 					mkdir -p "$MODELS_DIR"
 					if [ "$#" -eq 1 ]; then
 						url="$1"
@@ -216,12 +242,14 @@ llm - manage the llama.cpp server on this host
   llm pull <hf-url>         download a gguf into $MODELS_DIR
   llm pull <repo> <file>    download huggingface.co/<repo>/resolve/main/<file>
   llm models                list downloaded models
+  llm login [token]         save a Hugging Face token (prompts if omitted)
+  llm logout                delete the saved token
   llm help                  this text
 
 Config file ($CONFIG_F), KEY="VALUE" per line, overrides derivation defaults:
   LLM_HOST (${defHost})  LLM_PORT (${defPort})  LLM_CTX (${defCtx})
   LLM_NGL (${defNgl})  LLM_BACKEND (${defBackend})  LLM_EXTRA_ARGS
-Set HF_TOKEN in the environment for gated 'llm pull' downloads.
+Gated 'llm pull' auth, in order: \$HF_TOKEN, $TOKEN_F, ~/.cache/huggingface/token.
 EOF
 					;;
 				*)
