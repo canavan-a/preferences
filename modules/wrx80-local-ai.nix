@@ -1,7 +1,7 @@
 { config, pkgs, ...}:
 {
 	environment.systemPackages = with pkgs; [
-
+		  rocmPackages.rocm-smi
 	];
 
 	# mutableUsers stays true (default), so passwords set with `passwd`
