@@ -1,8 +1,11 @@
 { config, pkgs, ...}:
 {
 	environment.systemPackages = with pkgs; [
-		  rocmPackages.rocm-smi
 		  libdrm.out
+		  (writeShellScriptBin "rocm-smi" ''
+		      export LD_LIBRARY_PATH=${libdrm.out}/lib:$LD_LIBRARY_PATH
+		      exec ${rocmPackages.rocm-smi}/bin/rocm-smi "$@"
+		  '')
 	];
 
 	# mutableUsers stays true (default), so passwords set with `passwd`
