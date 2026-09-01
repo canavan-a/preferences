@@ -20,6 +20,8 @@ in
 	environment.variables = {
 		ANDROID_HOME = "${androidComposition.androidsdk}/libexec/android-sdk";
 		ANDROID_SDK_ROOT = "${androidComposition.androidsdk}/libexec/android-sdk";
+		EDITOR = "micro";
+		VISUAL = "micro";
 	};
 
 	environment.systemPackages = with pkgs; [
