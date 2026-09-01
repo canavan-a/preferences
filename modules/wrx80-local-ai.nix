@@ -453,44 +453,39 @@ EOF2
 					free_mib=$(( tot_mib - used_mib ))
 					printf 'gpu vram   : %s MiB total   %s used   %s free\n' "$tot_mib" "$used_mib" "$free_mib"
 
+					nctx="$(cfg_get NIXLLM_CTX "${defCtx}")"
+					par=1
+					pl="$(journalctl -u nixllm -b --no-pager 2>/dev/null | grep -oE 'n_parallel = [0-9]+' | tail -n1 | grep -oE '[0-9]+$' || true)"
+					[ -n "$pl" ] && par="$pl"
+
 					if ! systemctl is-active --quiet nixllm; then
-						echo "server     : not running - start nixllm for the KV / context breakdown"
+						echo "server     : not running (config: n_ctx $nctx, parallel $par)"
+						echo "note       : start nixllm, then re-run for the context estimate"
 						exit 0
 					fi
 
-					log="$(journalctl -u nixllm -b --no-pager 2>/dev/null || true)"
-					if [ -z "$log" ]; then
-						echo "server     : running, but journal not readable here (try: sudo nixllm headroom)"
-						exit 0
+					# GGUF weights on disk are a close proxy for the model's VRAM footprint (Q4).
+					model_mib=0
+					if [ -s "$MODEL_F" ]; then
+						mp="$(cat "$MODEL_F")"
+						[ -f "$mp" ] && model_mib=$(( $(stat -c%s "$mp") / 1048576 ))
 					fi
+					# Everything the server holds on the GPU minus the weights ~= KV (x parallel slots) + compute buffers.
+					kv_over=$(( used_mib - model_mib ))
+					[ "$kv_over" -lt 1 ] && kv_over=1
 
-					sum_buf() {
-						# sum the integer MiB from "<label> buffer size = N.NN MiB" lines
-						total=0
-						while IFS= read -r n; do
-							case "$n" in ""|*[!0-9]*) ;; *) total=$(( total + n )) ;; esac
-						done <<EOF3
-$(printf '%s\n' "$log" | grep -iE "$1 *buffer size *=" | sed -E 's/.*= *([0-9]+).*/\1/')
-EOF3
-						printf '%s' "$total"
-					}
-					model_mib="$(sum_buf model)"
-					kv_mib="$(sum_buf KV)"
-					comp_mib="$(sum_buf compute)"
-					nctx="$(printf '%s\n' "$log" | grep -oE 'n_ctx *= *[0-9]+' | tail -n1 | grep -oE '[0-9]+$' || true)"
+					printf 'server     : n_ctx %s   parallel %s   (weights ~%s MiB, KV+buffers ~%s MiB)\n' \
+						"$nctx" "$par" "$model_mib" "$kv_over"
 
-					printf 'server     : model %s  +  KV %s  +  compute %s   MiB   (n_ctx %s)\n' \
-						"$model_mib" "$kv_mib" "$comp_mib" "''${nctx:-?}"
-
-					if [ "''${kv_mib:-0}" -gt 0 ] && [ "''${nctx:-0}" -gt 0 ]; then
-						per_k=$(( kv_mib * 1000 / nctx ))          # MiB per 1000 tokens
-						budget=$(( free_mib * 90 / 100 ))          # keep 10% headroom
-						if [ "$per_k" -gt 0 ]; then
-							extra=$(( budget * 1000 / per_k ))
-							maxctx=$(( (nctx + extra) / 1024 * 1024 ))
-							printf 'kv / 1k tok: ~%s MiB\n' "$per_k"
-							printf 'fits       : ~%s more tokens  ->  nixllm context %s   (90%% of free VRAM)\n' "$extra" "$maxctx"
-						fi
+					# Linear extrapolation on current KV+buffer cost per token, keeping 10% of VRAM free.
+					per_k=$(( kv_over * 1000 / nctx ))
+					budget=$(( free_mib * 90 / 100 ))
+					if [ "$per_k" -gt 0 ]; then
+						extra=$(( budget * 1000 / per_k ))
+						maxctx=$(( (nctx + extra) / 1024 * 1024 ))
+						printf 'cost       : ~%s MiB per 1k tokens  (x%s slots at parallel %s)\n' "$per_k" "$par" "$par"
+						printf 'fits       : ~%s more tokens  ->  nixllm context %s   (keeps 10%% VRAM free)\n' "$extra" "$maxctx"
+						[ "$par" -gt 1 ] && echo "hint       : set NIXLLM_EXTRA_ARGS=\"--parallel 1\" to give one client the whole budget"
 					fi
 					;;
 				help|-h|--help)
