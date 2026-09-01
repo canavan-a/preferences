@@ -67,7 +67,6 @@ let
 		name = "llm";
 		runtimeInputs = with pkgs; [ curl coreutils gnugrep gnused systemd ];
 		text = ''
-			STATE_DIR="${stateDir}"
 			MODELS_DIR="${modelsDir}"
 			CONFIG_F="${configF}"
 			MODEL_F="${modelF}"
