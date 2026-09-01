@@ -120,6 +120,12 @@ in
 					permission = {
 						edit = "ask";
 					};
+					provider.nixllm = {
+						npm = "@ai-sdk/openai-compatible";
+						name = "nixllm (llama.cpp)";
+						options.baseURL = "https://llm.acanavan.com/v1";
+						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Qwen3 27B"; };
+					};
 				};
 			};
 		};

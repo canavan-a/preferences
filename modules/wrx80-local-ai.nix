@@ -165,6 +165,19 @@ ART
 				return 1
 			}
 
+			# Bytes -> "X.X" (GiB, one decimal, truncated).
+			gib1() { printf '%d.%d' "$(( $1 / 1073741824 ))" "$(( $1 * 10 / 1073741824 % 10 ))"; }
+
+			# Echo the amdgpu hwmon dir (.../cardN/device/hwmon/hwmonM), empty if none.
+			find_amdgpu_hwmon() {
+				for h in /sys/class/drm/card*/device/hwmon/hwmon*; do
+					if [ -r "$h/name" ] && [ "$(cat "$h/name")" = "amdgpu" ]; then
+						printf '%s' "$h"; return 0
+					fi
+				done
+				return 1
+			}
+
 			cmd="''${1:-help}"
 			[ "$#" -gt 0 ] && shift || true
 
@@ -234,6 +247,16 @@ ART
 						rocm|vulkan) cfg_set NIXLLM_BACKEND "$1"; echo "nixllm: backend -> $1" ;;
 						*) echo "nixllm: backend must be 'rocm' or 'vulkan'" >&2; exit 1 ;;
 					esac
+					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
+					;;
+				context|ctx)
+					if [ "$#" -eq 0 ]; then
+						echo "context: $(cfg_get NIXLLM_CTX "${defCtx}") tokens"
+						exit 0
+					fi
+					case "$1" in ""|*[!0-9]*) echo "usage: nixllm context <n-tokens>" >&2; exit 1 ;; esac
+					cfg_set NIXLLM_CTX "$1"
+					echo "nixllm: context -> $1"
 					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
 					;;
 				mmproj)
@@ -366,12 +389,10 @@ EOF
 					;;
 				gpu-monitor)
 					command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
-					HW=""
-					for h in /sys/class/drm/card*/device/hwmon/hwmon*; do
-						if [ -r "$h/name" ] && [ "$(cat "$h/name")" = "amdgpu" ]; then HW="$h"; break; fi
-					done
-					printf '\033[?25l'
-					trap 'printf "\033[?25h\n"; exit 0' INT
+					HW="$(find_amdgpu_hwmon || true)"
+					DEV=""; [ -n "$HW" ] && DEV="''${HW%/hwmon/*}"
+					printf '\033[?1049h\033[?25l'
+					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT EXIT
 					while :; do
 						j="$(rocm-smi --showtemp --showpower --showuse --json 2>/dev/null || true)"
 						read -r edge junc mem pwr use <<EOF2
@@ -392,6 +413,18 @@ EOF2
 								case "$p" in ""|*[!0-9]*) fanpct="n/a" ;; *) fanpct="$(( p * 100 / 255 ))" ;; esac
 							fi
 						fi
+						vram="n/a"; vpct="?"
+						if [ -n "$DEV" ] && [ -r "$DEV/mem_info_vram_used" ] && [ -r "$DEV/mem_info_vram_total" ]; then
+							vu="$(cat "$DEV/mem_info_vram_used" 2>/dev/null || echo 0)"
+							vt="$(cat "$DEV/mem_info_vram_total" 2>/dev/null || echo 0)"
+							case "$vu$vt" in
+								*[!0-9]*|"") ;;
+								*) if [ "$vt" -gt 0 ]; then
+									vram="$(gib1 "$vu") / $(gib1 "$vt")"
+									vpct="$(( vu * 100 / vt ))"
+								fi ;;
+							esac
+						fi
 						printf '\033[H\033[2J'
 						echo "nixllm gpu-monitor   $(date '+%H:%M:%S')   (Ctrl-C to exit)"
 						echo
@@ -399,8 +432,66 @@ EOF2
 						printf '  fan      %s rpm   (%s%% pwm)\n' "$rpm" "$fanpct"
 						printf '  power    %s W\n' "$pwr"
 						printf '  util     %s %%\n' "$use"
+						if [ "$vram" = "n/a" ]; then
+							printf '  vram     n/a\n'
+						else
+							printf '  vram     %s GiB   (%s%%)\n' "$vram" "$vpct"
+						fi
 						sleep 1
 					done
+					;;
+				headroom)
+					HW="$(find_amdgpu_hwmon || true)"
+					DEV=""; [ -n "$HW" ] && DEV="''${HW%/hwmon/*}"
+					if [ -z "$DEV" ] || [ ! -r "$DEV/mem_info_vram_total" ]; then
+						echo "nixllm: amdgpu VRAM sysfs not found" >&2; exit 1
+					fi
+					vt="$(cat "$DEV/mem_info_vram_total")"
+					vu="$(cat "$DEV/mem_info_vram_used")"
+					tot_mib=$(( vt / 1048576 ))
+					used_mib=$(( vu / 1048576 ))
+					free_mib=$(( tot_mib - used_mib ))
+					printf 'gpu vram   : %s MiB total   %s used   %s free\n' "$tot_mib" "$used_mib" "$free_mib"
+
+					if ! systemctl is-active --quiet nixllm; then
+						echo "server     : not running - start nixllm for the KV / context breakdown"
+						exit 0
+					fi
+
+					log="$(journalctl -u nixllm -b --no-pager 2>/dev/null || true)"
+					if [ -z "$log" ]; then
+						echo "server     : running, but journal not readable here (try: sudo nixllm headroom)"
+						exit 0
+					fi
+
+					sum_buf() {
+						# sum the integer MiB from "<label> buffer size = N.NN MiB" lines
+						total=0
+						while IFS= read -r n; do
+							case "$n" in ""|*[!0-9]*) ;; *) total=$(( total + n )) ;; esac
+						done <<EOF3
+$(printf '%s\n' "$log" | grep -iE "$1 *buffer size *=" | sed -E 's/.*= *([0-9]+).*/\1/')
+EOF3
+						printf '%s' "$total"
+					}
+					model_mib="$(sum_buf model)"
+					kv_mib="$(sum_buf KV)"
+					comp_mib="$(sum_buf compute)"
+					nctx="$(printf '%s\n' "$log" | grep -oE 'n_ctx *= *[0-9]+' | tail -n1 | grep -oE '[0-9]+$' || true)"
+
+					printf 'server     : model %s  +  KV %s  +  compute %s   MiB   (n_ctx %s)\n' \
+						"$model_mib" "$kv_mib" "$comp_mib" "''${nctx:-?}"
+
+					if [ "''${kv_mib:-0}" -gt 0 ] && [ "''${nctx:-0}" -gt 0 ]; then
+						per_k=$(( kv_mib * 1000 / nctx ))          # MiB per 1000 tokens
+						budget=$(( free_mib * 90 / 100 ))          # keep 10% headroom
+						if [ "$per_k" -gt 0 ]; then
+							extra=$(( budget * 1000 / per_k ))
+							maxctx=$(( (nctx + extra) / 1024 * 1024 ))
+							printf 'kv / 1k tok: ~%s MiB\n' "$per_k"
+							printf 'fits       : ~%s more tokens  ->  nixllm context %s   (90%% of free VRAM)\n' "$extra" "$maxctx"
+						fi
+					fi
 					;;
 				help|-h|--help)
 					banner
@@ -412,9 +503,11 @@ nixllm - manage the llama.cpp server on this host
   nixllm stop                  stop the server
   nixllm restart               restart (apply a new model / backend / config)
   nixllm status                service state, active model, backend, health
-  nixllm gpu-monitor           live GPU temp / fan / power / util (Ctrl-C to exit)
+  nixllm gpu-monitor           live GPU temp / fan / power / util / vram (Ctrl-C to exit)
+  nixllm headroom              VRAM budget + largest context that fits
   nixllm load <path.gguf>      select the active model
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
+  nixllm context [<n>]         get/set context window in tokens (restart to apply)
   nixllm mmproj [add <p>|clear] attach/detach a vision projector (mmproj gguf)
   nixllm apikey [show|set <k>|generate|clear]  require Bearer auth on the HTTP endpoint
   nixllm pull <hf-url>         download a gguf into $MODELS_DIR
