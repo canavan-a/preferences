@@ -39,6 +39,7 @@ let
 		NIXLLM_NGL="${defNgl}"
 		NIXLLM_BACKEND="${defBackend}"
 		NIXLLM_EXTRA_ARGS="${defExtraArgs}"
+		NIXLLM_PARALLEL=""
 
 		if [ -f "${configF}" ]; then
 			# shellcheck disable=SC1090
@@ -70,6 +71,11 @@ let
 			APIKEY_ARGS="--api-key-file ${apiKeyF}"
 		fi
 
+		PARALLEL_ARGS=""
+		if [ -n "$NIXLLM_PARALLEL" ]; then
+			PARALLEL_ARGS="--parallel $NIXLLM_PARALLEL"
+		fi
+
 		case "$NIXLLM_BACKEND" in
 			rocm)   SERVER="${llamaCppRocm}/bin/llama-server" ;;
 			vulkan) SERVER="${llamaCppVulkan}/bin/llama-server" ;;
@@ -86,6 +92,7 @@ let
 			--n-gpu-layers "$NIXLLM_NGL" \
 			$MMPROJ_ARGS \
 			$APIKEY_ARGS \
+			$PARALLEL_ARGS \
 			$NIXLLM_EXTRA_ARGS
 	'';
 
@@ -149,6 +156,11 @@ ART
 				fi
 			}
 
+			cfg_unset() {
+				# cfg_unset KEY
+				[ -f "$CONFIG_F" ] && sed -i "/^$1=/d" "$CONFIG_F"
+			}
+
 			host() { cfg_get NIXLLM_HOST "${defHost}"; }
 			port() { cfg_get NIXLLM_PORT "${defPort}"; }
 
@@ -209,7 +221,7 @@ ART
 					echo
 					echo "backend : $(cfg_get NIXLLM_BACKEND "${defBackend}")"
 					echo "endpoint: http://$(host):$(port)"
-					echo "ctx     : $(cfg_get NIXLLM_CTX "${defCtx}")   ngl: $(cfg_get NIXLLM_NGL "${defNgl}")"
+					echo "ctx     : $(cfg_get NIXLLM_CTX "${defCtx}")   ngl: $(cfg_get NIXLLM_NGL "${defNgl}")   parallel: $(cfg_get NIXLLM_PARALLEL "auto")"
 					if [ -s "$MODEL_F" ]; then
 						echo "model   : $(cat "$MODEL_F")"
 					else
@@ -257,6 +269,27 @@ ART
 					case "$1" in ""|*[!0-9]*) echo "usage: nixllm context <n-tokens>" >&2; exit 1 ;; esac
 					cfg_set NIXLLM_CTX "$1"
 					echo "nixllm: context -> $1"
+					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
+					;;
+				parallel|p)
+					if [ "$#" -eq 0 ]; then
+						v="$(cfg_get NIXLLM_PARALLEL "")"
+						echo "parallel: ''${v:-auto (llama.cpp default)}"
+						exit 0
+					fi
+					case "$1" in
+						clear|auto|none|"")
+							cfg_unset NIXLLM_PARALLEL
+							echo "nixllm: parallel -> auto"
+							;;
+						*[!0-9]*)
+							echo "usage: nixllm p [<n> | clear]" >&2; exit 1
+							;;
+						*)
+							cfg_set NIXLLM_PARALLEL "$1"
+							echo "nixllm: parallel -> $1"
+							;;
+					esac
 					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
 					;;
 				mmproj)
@@ -454,9 +487,11 @@ EOF2
 					printf 'gpu vram   : %s MiB total   %s used   %s free\n' "$tot_mib" "$used_mib" "$free_mib"
 
 					nctx="$(cfg_get NIXLLM_CTX "${defCtx}")"
-					par=1
-					pl="$(journalctl -u nixllm -b --no-pager 2>/dev/null | grep -oE 'n_parallel = [0-9]+' | tail -n1 | grep -oE '[0-9]+$' || true)"
+					par=1; unified=no
+					jl="$(journalctl -u nixllm -b --no-pager 2>/dev/null || true)"
+					pl="$(printf '%s\n' "$jl" | grep -oE 'n_parallel = [0-9]+' | tail -n1 | grep -oE '[0-9]+$' || true)"
 					[ -n "$pl" ] && par="$pl"
+					printf '%s\n' "$jl" | grep -q 'kv_unified = true' && unified=yes
 
 					if ! systemctl is-active --quiet nixllm; then
 						echo "server     : not running (config: n_ctx $nctx, parallel $par)"
@@ -474,18 +509,24 @@ EOF2
 					kv_over=$(( used_mib - model_mib ))
 					[ "$kv_over" -lt 1 ] && kv_over=1
 
-					printf 'server     : n_ctx %s   parallel %s   (weights ~%s MiB, KV+buffers ~%s MiB)\n' \
-						"$nctx" "$par" "$model_mib" "$kv_over"
+					kvnote="shared pool across $par slots"
+					[ "$unified" = no ] && kvnote="$par separate slots"
+					printf 'server     : n_ctx %s   parallel %s (%s)   weights ~%s MiB   KV+buffers ~%s MiB\n' \
+						"$nctx" "$par" "$kvnote" "$model_mib" "$kv_over"
 
-					# Linear extrapolation on current KV+buffer cost per token, keeping 10% of VRAM free.
+					# Linear extrapolation on current KV+buffer cost per token. Keep 20% of VRAM
+					# free - fragmentation and the prompt/compute buffers grow with context too.
 					per_k=$(( kv_over * 1000 / nctx ))
-					budget=$(( free_mib * 90 / 100 ))
+					budget=$(( free_mib * 80 / 100 ))
 					if [ "$per_k" -gt 0 ]; then
 						extra=$(( budget * 1000 / per_k ))
-						maxctx=$(( (nctx + extra) / 1024 * 1024 ))
-						printf 'cost       : ~%s MiB per 1k tokens  (x%s slots at parallel %s)\n' "$per_k" "$par" "$par"
-						printf 'fits       : ~%s more tokens  ->  nixllm context %s   (keeps 10%% VRAM free)\n' "$extra" "$maxctx"
-						[ "$par" -gt 1 ] && echo "hint       : set NIXLLM_EXTRA_ARGS=\"--parallel 1\" to give one client the whole budget"
+						maxctx=$(( (nctx + extra) / 4096 * 4096 ))
+						printf 'cost       : ~%s MiB per 1k tokens of context\n' "$per_k"
+						printf 'fits       : ~%s more tokens  ->  nixllm context %s   (keeps 20%% VRAM free)\n' "$extra" "$maxctx"
+						if [ "$unified" = yes ] && [ "$par" -gt 1 ]; then
+							echo "note       : KV is one shared pool, so concurrent requests split n_ctx between them;"
+							echo "             run 'nixllm p 1' if one client should always get all of it"
+						fi
 					fi
 					;;
 				help|-h|--help)
@@ -503,6 +544,7 @@ nixllm - manage the llama.cpp server on this host
   nixllm load <path.gguf>      select the active model
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
   nixllm context [<n>]         get/set context window in tokens (restart to apply)
+  nixllm p [<n>|clear]         get/set --parallel request slots (default: auto)
   nixllm mmproj [add <p>|clear] attach/detach a vision projector (mmproj gguf)
   nixllm apikey [show|set <k>|generate|clear]  require Bearer auth on the HTTP endpoint
   nixllm pull <hf-url>         download a gguf into $MODELS_DIR
