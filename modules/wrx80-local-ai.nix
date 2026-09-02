@@ -477,16 +477,17 @@ EOF
 				tps)
 					h="$(host)"; [ "$h" = "0.0.0.0" ] && h="127.0.0.1"
 					url="http://$h:$(port)/metrics"
-					if ! curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
+					mauth=(); [ -s "$API_KEY_F" ] && mauth=(-H "Authorization: Bearer $(cat "$API_KEY_F")")
+					if ! curl -fsS --max-time 2 "''${mauth[@]}" "$url" >/dev/null 2>&1; then
 						echo "nixllm: /metrics unreachable at $url" >&2
-						echo "note   : needs a running server built with --metrics (nixllm restart after this update)" >&2
+						echo "note   : server needs --metrics (rebuild + 'nixllm restart'); if an api key is set it must be readable at $API_KEY_F" >&2
 						exit 1
 					fi
 					par="$(cfg_get NIXLLM_PARALLEL "auto")"
 					printf '\033[?1049h\033[?25l'
 					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT EXIT
 					while :; do
-						m="$(curl -fsS --max-time 2 "$url" 2>/dev/null || true)"
+						m="$(curl -fsS --max-time 2 "''${mauth[@]}" "$url" 2>/dev/null || true)"
 						read -r in_s out_s act def kv ptot dtot <<EOF3
 $(printf '%s\n' "$m" | awk '
 					  $1=="llamacpp:prompt_tokens_seconds"    {a=$2}
@@ -518,6 +519,7 @@ EOF3
 					DEV=""; [ -n "$HW" ] && DEV="''${HW%/hwmon/*}"
 					mh="$(host)"; [ "$mh" = "0.0.0.0" ] && mh="127.0.0.1"
 					murl="http://$mh:$(port)/metrics"
+					mauth=(); [ -s "$API_KEY_F" ] && mauth=(-H "Authorization: Bearer $(cat "$API_KEY_F")")
 					mpar="$(cfg_get NIXLLM_PARALLEL "auto")"
 					printf '\033[?1049h\033[?25l'
 					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT EXIT
@@ -554,7 +556,7 @@ EOF2
 							esac
 						fi
 						tok="n/a"
-						m="$(curl -fsS --max-time 1 "$murl" 2>/dev/null || true)"
+						m="$(curl -fsS --max-time 1 "''${mauth[@]}" "$murl" 2>/dev/null || true)"
 						if [ -n "$m" ]; then
 							read -r in_s out_s act def <<EOF4
 $(printf '%s\n' "$m" | awk '
