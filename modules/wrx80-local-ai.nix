@@ -102,6 +102,7 @@ let
 			--port "$NIXLLM_PORT" \
 			--ctx-size "$NIXLLM_CTX" \
 			--n-gpu-layers "$NIXLLM_NGL" \
+			--metrics \
 			$MMPROJ_ARGS \
 			$APIKEY_ARGS \
 			$PARALLEL_ARGS \
@@ -112,7 +113,7 @@ let
 
 	nixllmCli = pkgs.writeShellApplication {
 		name = "nixllm";
-		runtimeInputs = (with pkgs; [ curl coreutils gnugrep gnused systemd jq ]) ++ [ rocmSmiWrapped ];
+		runtimeInputs = (with pkgs; [ curl coreutils gnugrep gnused gawk systemd jq ]) ++ [ rocmSmiWrapped ];
 		text = ''
 			MODELS_DIR="${modelsDir}"
 			CONFIG_F="${configF}"
@@ -473,10 +474,51 @@ EOF
 					echo "nixllm: saved $out"
 					echo "nixllm: run 'nixllm load $out' to use it"
 					;;
+				tps)
+					h="$(host)"; [ "$h" = "0.0.0.0" ] && h="127.0.0.1"
+					url="http://$h:$(port)/metrics"
+					if ! curl -fsS --max-time 2 "$url" >/dev/null 2>&1; then
+						echo "nixllm: /metrics unreachable at $url" >&2
+						echo "note   : needs a running server built with --metrics (nixllm restart after this update)" >&2
+						exit 1
+					fi
+					par="$(cfg_get NIXLLM_PARALLEL "auto")"
+					printf '\033[?1049h\033[?25l'
+					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT EXIT
+					while :; do
+						m="$(curl -fsS --max-time 2 "$url" 2>/dev/null || true)"
+						read -r in_s out_s act def kv ptot dtot <<EOF3
+$(printf '%s\n' "$m" | awk '
+					  $1=="llamacpp:prompt_tokens_seconds"    {a=$2}
+					  $1=="llamacpp:predicted_tokens_seconds"  {b=$2}
+					  $1=="llamacpp:requests_processing"       {c=$2}
+					  $1=="llamacpp:requests_deferred"         {d=$2}
+					  $1=="llamacpp:kv_cache_usage_ratio"      {e=$2}
+					  $1=="llamacpp:prompt_tokens_total"       {f=$2}
+					  $1=="llamacpp:tokens_predicted_total"    {g=$2}
+					  END { printf "%s %s %s %s %s %s %s\n",
+					        (a==""?"0":a),(b==""?"0":b),(c==""?"0":c),(d==""?"0":d),
+					        (e==""?"0":e),(f==""?"0":f),(g==""?"0":g) }')
+EOF3
+						kvpct="$(printf '%s' "$kv" | awk '{printf "%d", $1*100}')"
+						printf '\033[H\033[2J'
+						echo "nixllm tps   $(date '+%H:%M:%S')   (Ctrl-C to exit)"
+						echo
+						printf '  in     %8.1f tok/s\n' "$in_s"
+						printf '  out    %8.1f tok/s\n' "$out_s"
+						printf '  reqs   active %s / %s   queued %s\n' "$act" "$par" "$def"
+						printf '  kv     %s%% used\n' "$kvpct"
+						printf '  total  prompt %s   predicted %s\n' "$ptot" "$dtot"
+						sleep 1
+					done
+					;;
 				gpu-monitor)
 					command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
 					HW="$(find_amdgpu_hwmon || true)"
 					DEV=""; [ -n "$HW" ] && DEV="''${HW%/hwmon/*}"
+					mh="$(host)"; [ "$mh" = "0.0.0.0" ] && mh="127.0.0.1"
+					murl="http://$mh:$(port)/metrics"
+					mpar="$(cfg_get NIXLLM_PARALLEL "auto")"
 					printf '\033[?1049h\033[?25l'
 					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT EXIT
 					while :; do
@@ -511,6 +553,20 @@ EOF2
 								fi ;;
 							esac
 						fi
+						tok="n/a"
+						m="$(curl -fsS --max-time 1 "$murl" 2>/dev/null || true)"
+						if [ -n "$m" ]; then
+							read -r in_s out_s act def <<EOF4
+$(printf '%s\n' "$m" | awk '
+  $1=="llamacpp:prompt_tokens_seconds"   {a=$2}
+  $1=="llamacpp:predicted_tokens_seconds"{b=$2}
+  $1=="llamacpp:requests_processing"     {c=$2}
+  $1=="llamacpp:requests_deferred"       {d=$2}
+  END { printf "%s %s %s %s\n", (a==""?"0":a),(b==""?"0":b),(c==""?"0":c),(d==""?"0":d) }')
+EOF4
+							tok="$(printf 'in %.0f/s  out %.0f/s   active %s/%s  queued %s' \
+								"$in_s" "$out_s" "$act" "$mpar" "$def")"
+						fi
 						printf '\033[H\033[2J'
 						echo "nixllm gpu-monitor   $(date '+%H:%M:%S')   (Ctrl-C to exit)"
 						echo
@@ -523,6 +579,7 @@ EOF2
 						else
 							printf '  vram     %s GiB   (%s%%)\n' "$vram" "$vpct"
 						fi
+						printf '  tokens   %s\n' "$tok"
 						sleep 1
 					done
 					;;
@@ -593,6 +650,7 @@ nixllm - manage the llama.cpp server on this host
   nixllm restart               restart (apply a new model / backend / config)
   nixllm status                service state, active model, backend, health
   nixllm gpu-monitor           live GPU temp / fan / power / util / vram (Ctrl-C to exit)
+  nixllm tps                   live token throughput in/out, active/queued reqs, kv use
   nixllm headroom              VRAM budget + largest context that fits
   nixllm load <path.gguf>      select the active model
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
