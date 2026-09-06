@@ -26,6 +26,7 @@ let
 	defCtx       = "4096";
 	defNgl       = "999";
 	defBackend   = "rocm";
+	defFlashAttn = "auto";
 	defExtraArgs = "";
 
 	# ExecStart for the systemd unit. Sources the config file over the
@@ -38,6 +39,7 @@ let
 		NIXLLM_CTX="${defCtx}"
 		NIXLLM_NGL="${defNgl}"
 		NIXLLM_BACKEND="${defBackend}"
+		NIXLLM_FLASH_ATTN="${defFlashAttn}"
 		NIXLLM_EXTRA_ARGS="${defExtraArgs}"
 		NIXLLM_PARALLEL=""
 		NIXLLM_REASONING="off"
@@ -88,6 +90,13 @@ let
 			*)          REASON_ARGS="$REASON_ARGS --reasoning-budget $NIXLLM_REASONING" ;;
 		esac
 
+		case "$NIXLLM_FLASH_ATTN" in
+			on|1)     FA_ARGS="--flash-attn on" ;;
+			off|0)    FA_ARGS="--flash-attn off" ;;
+			auto|"")  FA_ARGS="--flash-attn auto" ;;
+			*)        echo "nixllm: bad NIXLLM_FLASH_ATTN: $NIXLLM_FLASH_ATTN (on|off|auto)" >&2; exit 1 ;;
+		esac
+
 		case "$NIXLLM_BACKEND" in
 			rocm)   SERVER="${llamaCppRocm}/bin/llama-server" ;;
 			vulkan) SERVER="${llamaCppVulkan}/bin/llama-server" ;;
@@ -103,6 +112,7 @@ let
 			--ctx-size "$NIXLLM_CTX" \
 			--n-gpu-layers "$NIXLLM_NGL" \
 			--metrics \
+			$FA_ARGS \
 			$MMPROJ_ARGS \
 			$APIKEY_ARGS \
 			$PARALLEL_ARGS \
@@ -238,6 +248,7 @@ ART
 					echo "endpoint: http://$(host):$(port)"
 					echo "ctx     : $(cfg_get NIXLLM_CTX "${defCtx}")   ngl: $(cfg_get NIXLLM_NGL "${defNgl}")   parallel: $(cfg_get NIXLLM_PARALLEL "auto")"
 					echo "reason  : $(cfg_get NIXLLM_REASONING "off")"
+					echo "flash   : $(cfg_get NIXLLM_FLASH_ATTN "${defFlashAttn}")"
 					echo "sampling: $(cfg_get NIXLLM_SAMPLE_ARGS "(launch default)")"
 					if [ -s "$MODEL_F" ]; then
 						echo "model   : $(cat "$MODEL_F")"
@@ -306,6 +317,17 @@ ART
 							cfg_set NIXLLM_PARALLEL "$1"
 							echo "nixllm: parallel -> $1"
 							;;
+					esac
+					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
+					;;
+				fa|flash)
+					if [ "$#" -eq 0 ]; then
+						echo "flash-attn: $(cfg_get NIXLLM_FLASH_ATTN "${defFlashAttn}")"
+						exit 0
+					fi
+					case "$1" in
+						on|off|auto) cfg_set NIXLLM_FLASH_ATTN "$1"; echo "nixllm: flash-attn -> $1" ;;
+						*) echo "usage: nixllm fa [on|off|auto]" >&2; exit 1 ;;
 					esac
 					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
 					;;
@@ -659,6 +681,7 @@ nixllm - manage the llama.cpp server on this host
   nixllm context [<n>]         get/set context window in tokens (restart to apply)
   nixllm p [<n>|clear]         get/set --parallel request slots (default: auto)
   nixllm think [off|low|full|<n>]  Qwen3 reasoning budget (default: off)
+  nixllm fa [on|off|auto]      flash attention (default: ${defFlashAttn}, restart to apply)
   nixllm preset <code|think|clear> apply a sampling + reasoning bundle
   nixllm mmproj [add <p>|clear] attach/detach a vision projector (mmproj gguf)
   nixllm apikey [show|set <k>|generate|clear]  require Bearer auth on the HTTP endpoint
@@ -671,7 +694,7 @@ nixllm - manage the llama.cpp server on this host
 
 Config file ($CONFIG_F), KEY="VALUE" per line, overrides derivation defaults:
   NIXLLM_HOST (${defHost})  NIXLLM_PORT (${defPort})  NIXLLM_CTX (${defCtx})
-  NIXLLM_NGL (${defNgl})  NIXLLM_BACKEND (${defBackend})  NIXLLM_EXTRA_ARGS
+  NIXLLM_NGL (${defNgl})  NIXLLM_BACKEND (${defBackend})  NIXLLM_FLASH_ATTN (${defFlashAttn})  NIXLLM_EXTRA_ARGS
   NIXLLM_PARALLEL  NIXLLM_REASONING (off)  NIXLLM_SAMPLE_ARGS  (see 'preset')
 Gated 'nixllm pull' auth, in order: \$HF_TOKEN, $TOKEN_F, ~/.cache/huggingface/token.
 EOF

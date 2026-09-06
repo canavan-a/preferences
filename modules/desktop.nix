@@ -126,6 +126,18 @@ in
 						options.baseURL = "https://llm.acanavan.com/v1";
 						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Qwen3 27B"; };
 					};
+					provider."home-nixllm" = {
+						npm = "@ai-sdk/openai-compatible";
+						name = "nixllm (local)";
+						options.baseURL = "http://nixllm:8080/v1";
+						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Local Qwen"; };
+					};
+					provider."home-nixllm-ip" = {
+						npm = "@ai-sdk/openai-compatible";
+						name = "nixllm (local IP)";
+						options.baseURL = "http://192.168.2.149:8080/v1";
+						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Local Qwen (IP)"; };
+					};
 				};
 			};
 		};
@@ -205,6 +217,10 @@ in
 		'';
 		programs.waybar = {
 			enable = true;
+			systemd = {
+				enable = true;
+				targets = [ "hyprland-session.target" ];
+			};
 			style = ''
 				#custom-nix {
 					font-size: 25px;
@@ -288,7 +304,15 @@ in
 			}];	
 		};
 		stylix.targets.waybar = {
-			enable = true;	
+			enable = true;
+		};
+
+		systemd.user.services.waybar = {
+			Unit.StartLimitIntervalSec = 0;
+			Service = {
+				Restart = lib.mkForce "always";
+				RestartSec = 2;
+			};
 		};
 
 		# programs.waybar.settings.mainBar.modules-left = [ "hyprland/workspaces" ];
@@ -464,7 +488,6 @@ in
 				];
 				exec-once = [
 				"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
-				"waybar"
 				"hyprpaper"
 				"nm-applet --indicator"
 				"hypridle > /tmp/hypridle.log 2>&1"
