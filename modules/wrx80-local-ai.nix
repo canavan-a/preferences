@@ -215,6 +215,22 @@ ART
 				return 1
 			}
 
+			# One line per amdgpu card: "cardN <pci-addr> <hwmon-dir|-> <device-dir>".
+			# Lets gpu-monitor report every GPU in the box, not just the first card.
+			list_amdgpu_gpus() {
+				for d in /sys/class/drm/card*/device; do
+					[ -r "$d/uevent" ] || continue
+					grep -q '^DRIVER=amdgpu$' "$d/uevent" || continue
+					cn="$(basename "$(dirname "$d")")"
+					pci="$(sed -n 's/^PCI_SLOT_NAME=//p' "$d/uevent")"
+					hw="-"
+					for h in "$d"/hwmon/hwmon*; do
+						[ -r "$h/name" ] && [ "$(cat "$h/name")" = "amdgpu" ] && { hw="$h"; break; }
+					done
+					printf '%s %s %s %s\n' "$cn" "''${pci:--}" "$hw" "$d"
+				done
+			}
+
 			cmd="''${1:-help}"
 			[ "$#" -gt 0 ] && shift || true
 
@@ -537,46 +553,68 @@ EOF3
 					;;
 				gpu-monitor)
 					command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
-					HW="$(find_amdgpu_hwmon || true)"
-					DEV=""; [ -n "$HW" ] && DEV="''${HW%/hwmon/*}"
 					mh="$(host)"; [ "$mh" = "0.0.0.0" ] && mh="127.0.0.1"
 					murl="http://$mh:$(port)/metrics"
 					mauth=(); [ -s "$API_KEY_F" ] && mauth=(-H "Authorization: Bearer $(cat "$API_KEY_F")")
 					mpar="$(cfg_get NIXLLM_PARALLEL "auto")"
+					GPUS="$(list_amdgpu_gpus)"
+					[ -n "$GPUS" ] || { echo "nixllm: no amdgpu cards found" >&2; exit 1; }
 					printf '\033[?1049h\033[?25l'
 					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT EXIT
 					while :; do
-						j="$(rocm-smi --showtemp --showpower --showuse --json 2>/dev/null || true)"
-						read -r edge junc mem pwr use <<EOF2
-$(printf '%s' "$j" | jq -r '
-  (.[] // {}) as $c |
+						j="$(rocm-smi --showtemp --showpower --showuse --showbus --json 2>/dev/null || true)"
+						printf '\033[H\033[2J'
+						echo "nixllm gpu-monitor   $(date '+%H:%M:%S')   (Ctrl-C to exit)"
+						while read -r cn pci hw dev; do
+							[ -n "$cn" ] || continue
+							# Match sysfs card -> rocm-smi entry by PCI bus (json key order is not sysfs order).
+							key="$(printf '%s' "$j" | jq -r --arg p "$pci" '
+							  to_entries[] | select((.value["PCI Bus"] // "" | ascii_downcase) == ($p | ascii_downcase)) | .key' 2>/dev/null | head -n1 || true)"
+							[ -n "$key" ] || key="$cn"
+							read -r edge junc mem pwr use <<EOF2
+$(printf '%s' "$j" | jq -r --arg k "$key" '
+  (.[$k] // {}) as $c |
   [ ($c["Temperature (Sensor edge) (C)"]     // "n/a"),
     ($c["Temperature (Sensor junction) (C)"] // "n/a"),
     ($c["Temperature (Sensor memory) (C)"]   // "n/a"),
     ($c["Average Graphics Package Power (W)"] // "n/a"),
     ($c["GPU use (%)"]                        // "n/a") ] | @tsv' 2>/dev/null)
 EOF2
-						[ -n "$edge" ] || edge="n/a"
-						rpm="n/a"; fanpct="n/a"
-						if [ -n "$HW" ] && [ -r "$HW/fan1_input" ]; then
-							rpm="$(cat "$HW/fan1_input" 2>/dev/null || echo n/a)"
-							if [ -r "$HW/pwm1" ]; then
-								p="$(cat "$HW/pwm1" 2>/dev/null || echo 0)"
-								case "$p" in ""|*[!0-9]*) fanpct="n/a" ;; *) fanpct="$(( p * 100 / 255 ))" ;; esac
+							[ -n "$edge" ] || edge="n/a"
+							rpm="n/a"; fanpct="n/a"
+							if [ "$hw" != "-" ] && [ -r "$hw/fan1_input" ]; then
+								rpm="$(cat "$hw/fan1_input" 2>/dev/null || echo n/a)"
+								if [ -r "$hw/pwm1" ]; then
+									p="$(cat "$hw/pwm1" 2>/dev/null || echo 0)"
+									case "$p" in ""|*[!0-9]*) fanpct="n/a" ;; *) fanpct="$(( p * 100 / 255 ))" ;; esac
+								fi
 							fi
-						fi
-						vram="n/a"; vpct="?"
-						if [ -n "$DEV" ] && [ -r "$DEV/mem_info_vram_used" ] && [ -r "$DEV/mem_info_vram_total" ]; then
-							vu="$(cat "$DEV/mem_info_vram_used" 2>/dev/null || echo 0)"
-							vt="$(cat "$DEV/mem_info_vram_total" 2>/dev/null || echo 0)"
-							case "$vu$vt" in
-								*[!0-9]*|"") ;;
-								*) if [ "$vt" -gt 0 ]; then
-									vram="$(gib1 "$vu") / $(gib1 "$vt")"
-									vpct="$(( vu * 100 / vt ))"
-								fi ;;
-							esac
-						fi
+							vram="n/a"; vpct="?"
+							if [ -r "$dev/mem_info_vram_used" ] && [ -r "$dev/mem_info_vram_total" ]; then
+								vu="$(cat "$dev/mem_info_vram_used" 2>/dev/null || echo 0)"
+								vt="$(cat "$dev/mem_info_vram_total" 2>/dev/null || echo 0)"
+								case "$vu$vt" in
+									*[!0-9]*|"") ;;
+									*) if [ "$vt" -gt 0 ]; then
+										vram="$(gib1 "$vu") / $(gib1 "$vt")"
+										vpct="$(( vu * 100 / vt ))"
+									fi ;;
+								esac
+							fi
+							echo
+							printf '  %s  %s\n' "$cn" "$pci"
+							printf '    temp   edge %s C   junction %s C   mem %s C\n' "$edge" "$junc" "$mem"
+							printf '    fan    %s rpm   (%s%% pwm)\n' "$rpm" "$fanpct"
+							printf '    power  %s W\n' "$pwr"
+							printf '    util   %s %%\n' "$use"
+							if [ "$vram" = "n/a" ]; then
+								printf '    vram   n/a\n'
+							else
+								printf '    vram   %s GiB   (%s%%)\n' "$vram" "$vpct"
+							fi
+						done <<EOF3
+$GPUS
+EOF3
 						tok="n/a"
 						m="$(curl -fsS --max-time 1 "''${mauth[@]}" "$murl" 2>/dev/null || true)"
 						if [ -n "$m" ]; then
@@ -591,19 +629,8 @@ EOF4
 							tok="$(printf 'in %.0f/s  out %.0f/s   active %s/%s  queued %s' \
 								"$in_s" "$out_s" "$act" "$mpar" "$def")"
 						fi
-						printf '\033[H\033[2J'
-						echo "nixllm gpu-monitor   $(date '+%H:%M:%S')   (Ctrl-C to exit)"
 						echo
-						printf '  temp     edge %s C   junction %s C   mem %s C\n' "$edge" "$junc" "$mem"
-						printf '  fan      %s rpm   (%s%% pwm)\n' "$rpm" "$fanpct"
-						printf '  power    %s W\n' "$pwr"
-						printf '  util     %s %%\n' "$use"
-						if [ "$vram" = "n/a" ]; then
-							printf '  vram     n/a\n'
-						else
-							printf '  vram     %s GiB   (%s%%)\n' "$vram" "$vpct"
-						fi
-						printf '  tokens   %s\n' "$tok"
+						printf '  server   %s\n' "$tok"
 						sleep 1
 					done
 					;;
@@ -706,10 +733,58 @@ EOF
 			esac
 		'';
 	};
+
+	# Bash tab completion for the nixllm CLI. NixOS enables bash-completion by
+	# default and auto-sources any share/bash-completion/completions/<name> that
+	# a system package installs, so shipping this file is all that is needed.
+	nixllmCompletion = pkgs.writeTextFile {
+		name = "nixllm-completion.bash";
+		destination = "/share/bash-completion/completions/nixllm";
+		text = ''
+			_nixllm() {
+				local cur prev cword
+				if ! _get_comp_words_by_ref -n : cur prev cword 2>/dev/null; then
+					cur="''${COMP_WORDS[COMP_CWORD]}"
+					prev="''${COMP_WORDS[COMP_CWORD-1]}"
+					cword=$COMP_CWORD
+				fi
+
+				local cmds="start stop restart status gpu-monitor tps headroom load \
+					backend context ctx parallel p think fa flash preset mmproj apikey \
+					pull models login logout help"
+
+				if [ "$cword" -eq 1 ]; then
+					mapfile -t COMPREPLY < <(compgen -W "$cmds" -- "$cur")
+					return
+				fi
+
+				local sub="''${COMP_WORDS[1]}"
+				case "$sub" in
+					backend)     mapfile -t COMPREPLY < <(compgen -W "rocm vulkan" -- "$cur") ;;
+					fa|flash)    mapfile -t COMPREPLY < <(compgen -W "on off auto" -- "$cur") ;;
+					think)       mapfile -t COMPREPLY < <(compgen -W "off low full" -- "$cur") ;;
+					preset)      mapfile -t COMPREPLY < <(compgen -W "code think clear" -- "$cur") ;;
+					parallel|p)  mapfile -t COMPREPLY < <(compgen -W "clear auto" -- "$cur") ;;
+					apikey)
+						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "show set generate clear" -- "$cur") ;;
+					mmproj)
+						if [ "$cword" -eq 2 ]; then
+							mapfile -t COMPREPLY < <(compgen -W "show add clear help" -- "$cur")
+						else
+							_filedir gguf
+						fi ;;
+					load)        _filedir gguf ;;
+					*)           ;;
+				esac
+			}
+			complete -F _nixllm nixllm
+		'';
+	};
 in
 {
 	environment.systemPackages = (with pkgs; [
 		nixllmCli
+		nixllmCompletion
 		libdrm.out
 		vulkan-tools   # vulkaninfo, vkcube - Vulkan backend diagnostics
 	]) ++ [ rocmSmiWrapped ];
