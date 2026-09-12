@@ -755,6 +755,7 @@ EOF4
 							command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
 							GPUS="$(list_amdgpu_gpus)"
 							[ -n "$GPUS" ] || { echo "nixllm: no amdgpu cards found" >&2; exit 1; }
+							mauth=(); [ -s "$API_KEY_F" ] && mauth=(-H "Authorization: Bearer $(cat "$API_KEY_F")")
 							LOG="/var/log/nginx/nixllm-double.log"
 							start_off=0
 							[ -r "$LOG" ] && start_off="$(stat -c%s "$LOG" 2>/dev/null || echo 0)"
@@ -806,7 +807,7 @@ EOF3
 								echo
 								for lbl in "A:$DOUBLE_PORT_A" "B:$DOUBLE_PORT_B"; do
 									name="''${lbl%%:*}"; p="''${lbl##*:}"
-									m="$(curl -fsS --max-time 1 "http://127.0.0.1:$p/metrics" 2>/dev/null || true)"
+									m="$(curl -fsS --max-time 1 "''${mauth[@]}" "http://127.0.0.1:$p/metrics" 2>/dev/null || true)"
 									if [ -n "$m" ]; then
 										read -r in_s out_s act <<EOF4
 $(printf '%s\n' "$m" | awk '
