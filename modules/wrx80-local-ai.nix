@@ -1230,6 +1230,11 @@ in
 			Group = "llm";
 			Restart = "on-failure";
 			RestartSec = 2;
+			# llama-server won't exit while it has in-flight requests to cancel;
+			# a client that keeps retrying against a stopping instance can wedge
+			# a graceful shutdown indefinitely. Force it after a short grace
+			# period so 'stop'/'restart'/Ctrl-C never hangs for minutes.
+			TimeoutStopSec = 15;
 			SupplementaryGroups = [ "video" "render" ];
 			Environment = [
 				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
@@ -1244,6 +1249,11 @@ in
 			Group = "llm";
 			Restart = "on-failure";
 			RestartSec = 2;
+			# llama-server won't exit while it has in-flight requests to cancel;
+			# a client that keeps retrying against a stopping instance can wedge
+			# a graceful shutdown indefinitely. Force it after a short grace
+			# period so 'stop'/'restart'/Ctrl-C never hangs for minutes.
+			TimeoutStopSec = 15;
 			SupplementaryGroups = [ "video" "render" ];
 			Environment = [
 				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
@@ -1262,6 +1272,11 @@ in
 			Group = "llm";
 			Restart = "on-failure";
 			RestartSec = 2;
+			# llama-server won't exit while it has in-flight requests to cancel;
+			# a client that keeps retrying against a stopping instance can wedge
+			# a graceful shutdown indefinitely. Force it after a short grace
+			# period so 'stop'/'restart'/Ctrl-C never hangs for minutes.
+			TimeoutStopSec = 15;
 			SupplementaryGroups = [ "video" "render" ];
 			Environment = [
 				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
@@ -1276,6 +1291,11 @@ in
 			Group = "llm";
 			Restart = "on-failure";
 			RestartSec = 2;
+			# llama-server won't exit while it has in-flight requests to cancel;
+			# a client that keeps retrying against a stopping instance can wedge
+			# a graceful shutdown indefinitely. Force it after a short grace
+			# period so 'stop'/'restart'/Ctrl-C never hangs for minutes.
+			TimeoutStopSec = 15;
 			SupplementaryGroups = [ "video" "render" ];
 			Environment = [
 				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
@@ -1325,6 +1345,11 @@ in
 			Group = "llm";
 			Restart = "on-failure";
 			RestartSec = 2;
+			# llama-server won't exit while it has in-flight requests to cancel;
+			# a client that keeps retrying against a stopping instance can wedge
+			# a graceful shutdown indefinitely. Force it after a short grace
+			# period so 'stop'/'restart'/Ctrl-C never hangs for minutes.
+			TimeoutStopSec = 15;
 			# GPU access for ROCm (/dev/kfd, /dev/dri) and Vulkan (/dev/dri).
 			SupplementaryGroups = [ "video" "render" ];
 			# The unit runs with a scrubbed env; pin the RADV ICD so the Vulkan
