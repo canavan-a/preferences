@@ -836,6 +836,164 @@ EOF4
 							;;
 					esac
 					;;
+				single)
+					sub="''${1:-}"
+					[ "$#" -gt 0 ] && shift || true
+					case "$sub" in
+						stop)
+							which="''${1:-}"
+							case "$which" in
+								a) unit=nixllm-double-a ;;
+								b) unit=nixllm-double-b ;;
+								"")
+									a_active=false; b_active=false
+									systemctl is-active --quiet nixllm-double-a && a_active=true
+									systemctl is-active --quiet nixllm-double-b && b_active=true
+									if [ "$a_active" = true ] && [ "$b_active" = false ]; then which=a; unit=nixllm-double-a
+									elif [ "$b_active" = true ] && [ "$a_active" = false ]; then which=b; unit=nixllm-double-b
+									elif [ "$a_active" = true ] && [ "$b_active" = true ]; then
+										echo "nixllm: both gpu-a and gpu-b are active - specify 'nixllm single stop a' or 'nixllm single stop b'" >&2
+										exit 1
+									else
+										echo "nixllm: single not running"
+										exit 0
+									fi
+									;;
+								*) echo "nixllm: unknown gpu '$which' (a|b)" >&2; exit 1 ;;
+							esac
+							sudo systemctl stop "$unit" 2>/dev/null || true
+							echo "nixllm: single ($which) stopped"
+							;;
+						status)
+							which="''${1:-}"
+							case "$which" in
+								a) systemctl --no-pager --full status nixllm-double-a || true
+									echo; echo "gpu-a (port $DOUBLE_PORT_A): $(health_on "$DOUBLE_PORT_A")" ;;
+								b) systemctl --no-pager --full status nixllm-double-b || true
+									echo; echo "gpu-b (port $DOUBLE_PORT_B): $(health_on "$DOUBLE_PORT_B")" ;;
+								"") systemctl --no-pager --full status nixllm-double-a nixllm-double-b || true
+									echo
+									echo "gpu-a (port $DOUBLE_PORT_A): $(health_on "$DOUBLE_PORT_A")"
+									echo "gpu-b (port $DOUBLE_PORT_B): $(health_on "$DOUBLE_PORT_B")" ;;
+								*) echo "nixllm: unknown gpu '$which' (a|b)" >&2; exit 1 ;;
+							esac
+							;;
+						""|start)
+							shopt -s nullglob
+							found=("$MODELS_DIR"/*.gguf)
+							if [ ''${#found[@]} -eq 0 ]; then
+								echo "nixllm: no models in $MODELS_DIR - run 'nixllm pull' first" >&2
+								exit 1
+							fi
+							args=()
+							for f in "''${found[@]}"; do
+								args+=("$f" "$(basename "$f") ($(du -h "$f" | cut -f1))")
+							done
+							model="$(whiptail --title "nixllm single" --menu \
+								"Select a model" 20 78 10 \
+								"''${args[@]}" 3>&1 1>&2 2>&3)" || { echo "nixllm: cancelled"; exit 0; }
+							clear
+
+							gpu="$(whiptail --title "nixllm single" --menu \
+								"Select which GPU to run on (the other GPU is left untouched)" 15 70 2 \
+								a "GPU 0 (nixllm-double-a, port $DOUBLE_PORT_A)" \
+								b "GPU 1 (nixllm-double-b, port $DOUBLE_PORT_B)" \
+								3>&1 1>&2 2>&3)" || { echo "nixllm: cancelled"; exit 0; }
+							clear
+
+							case "$gpu" in
+								a) unit=nixllm-double-a; gpuport="$DOUBLE_PORT_A" ;;
+								b) unit=nixllm-double-b; gpuport="$DOUBLE_PORT_B" ;;
+							esac
+
+							printf '%s' "$model" > "$DOUBLE_MODEL_F"
+							echo "nixllm: single model -> $model"
+							if systemctl is-active --quiet nixllm; then
+								echo "nixllm: stopping single-instance nixllm service (GPU must not be shared)"
+								sudo systemctl stop nixllm
+							fi
+							echo "nixllm: starting $unit ..."
+							sudo systemctl restart "$unit"
+							if wait_health_on "$gpuport"; then
+								echo "nixllm: single up on gpu-$gpu -> http://0.0.0.0:$gpuport"
+							else
+								echo "nixllm: single started but /health did not come up - check 'nixllm single status $gpu'" >&2
+								exit 1
+							fi
+
+							command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
+							GPUS="$(list_amdgpu_gpus)"
+							[ -n "$GPUS" ] || { echo "nixllm: no amdgpu cards found" >&2; exit 1; }
+							mauth=(); [ -s "$API_KEY_F" ] && mauth=(-H "Authorization: Bearer $(cat "$API_KEY_F")")
+
+							cleanup() {
+								printf '\033[?25h\033[?1049l'
+								echo "nixllm: stopping single ($unit) ..."
+								sudo systemctl stop "$unit" 2>/dev/null || true
+								exit 0
+							}
+							printf '\033[?1049h\033[?25l'
+							trap cleanup INT TERM EXIT
+							while :; do
+								j="$(rocm-smi --showtemp --showpower --showuse --showbus --json 2>/dev/null || true)"
+								printf '\033[H\033[2J'
+								echo "nixllm single (gpu-$gpu)   $(date '+%H:%M:%S')   (Ctrl-C to stop and exit)"
+								echo "model: $(cat "$DOUBLE_MODEL_F" 2>/dev/null || echo -)"
+								i=0
+								while read -r cn pci hw dev; do
+									[ -n "$cn" ] || continue
+									case "$i" in 0) lbl=a ;; 1) lbl=b ;; *) lbl="$i" ;; esac
+									mark=""; [ "$lbl" = "$gpu" ] && mark=" (running)"
+									key="$(printf '%s' "$j" | jq -r --arg p "$pci" '
+									  to_entries[] | select((.value["PCI Bus"] // "" | ascii_downcase) == ($p | ascii_downcase)) | .key' 2>/dev/null | head -n1 || true)"
+									[ -n "$key" ] || key="$cn"
+									read -r edge pwr use <<EOF2
+$(printf '%s' "$j" | jq -r --arg k "$key" '
+  (.[$k] // {}) as $c |
+  [ ($c["Temperature (Sensor edge) (C)"]      // "n/a"),
+    ($c["Average Graphics Package Power (W)"] // "n/a"),
+    ($c["GPU use (%)"]                        // "n/a") ] | @tsv' 2>/dev/null)
+EOF2
+									[ -n "$edge" ] || edge="n/a"
+									vram="n/a"
+									if [ -r "$dev/mem_info_vram_used" ] && [ -r "$dev/mem_info_vram_total" ]; then
+										vu="$(cat "$dev/mem_info_vram_used" 2>/dev/null || echo 0)"
+										vt="$(cat "$dev/mem_info_vram_total" 2>/dev/null || echo 0)"
+										case "$vu$vt" in
+											*[!0-9]*|"") ;;
+											*) [ "$vt" -gt 0 ] && vram="$(gib1 "$vu") / $(gib1 "$vt") GiB" ;;
+										esac
+									fi
+									echo
+									printf '  gpu-%s (%s, %s)%s\n' "$lbl" "$cn" "$pci" "$mark"
+									printf '    temp %s C   power %s W   util %s %%   vram %s\n' "$edge" "$pwr" "$use" "$vram"
+									i=$(( i + 1 ))
+								done <<EOF3
+$GPUS
+EOF3
+								echo
+								m="$(curl -fsS --max-time 1 "''${mauth[@]}" "http://127.0.0.1:$gpuport/metrics" 2>/dev/null || true)"
+								if [ -n "$m" ]; then
+									read -r in_s out_s act <<EOF4
+$(printf '%s\n' "$m" | awk '
+  $1=="llamacpp:prompt_tokens_seconds"   {a=$2}
+  $1=="llamacpp:predicted_tokens_seconds"{b=$2}
+  $1=="llamacpp:requests_processing"     {c=$2}
+  END { printf "%s %s %s\n", (a==""?"0":a),(b==""?"0":b),(c==""?"0":c) }')
+EOF4
+									printf '  instance gpu-%s (:%s)  in %.0f/s  out %.0f/s  active %s\n' "$gpu" "$gpuport" "$in_s" "$out_s" "$act"
+								else
+									printf '  instance gpu-%s (:%s)  unreachable\n' "$gpu" "$gpuport"
+								fi
+								sleep 1
+							done
+							;;
+						*)
+							echo "nixllm: unknown single subcommand '$sub' (start|stop|status)" >&2
+							exit 1
+							;;
+					esac
+					;;
 				headroom)
 					GPUS="$(list_amdgpu_gpus)"
 					[ -n "$GPUS" ] || { echo "nixllm: amdgpu VRAM sysfs not found" >&2; exit 1; }
@@ -917,6 +1075,10 @@ nixllm - manage the llama.cpp server on this host
                                 gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}   auto ip_hash proxy: port ${doublePort}
   nixllm double stop           stop both double instances + nginx
   nixllm double status         double service state + per-instance health
+  nixllm single [start]        TUI: pick a model and ONE GPU, leaves the other GPU untouched
+                                gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}
+  nixllm single stop [a|b]     stop the single instance (infers gpu if only one is running)
+  nixllm single status [a|b]   single service state + health
   nixllm load <path.gguf>      select the active model
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
   nixllm swap                  flip which GPU is enumerated first in the layer-split (restart to apply)
@@ -964,7 +1126,7 @@ EOF
 					cword=$COMP_CWORD
 				fi
 
-				local cmds="start stop restart status gpu-monitor tps headroom double load \
+				local cmds="start stop restart status gpu-monitor tps headroom double single load \
 					backend swap context ctx parallel p think fa flash preset mmproj apikey \
 					pull models login logout help"
 
@@ -982,6 +1144,12 @@ EOF
 					parallel|p)  mapfile -t COMPREPLY < <(compgen -W "clear auto" -- "$cur") ;;
 					double)
 						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "start stop status" -- "$cur") ;;
+					single)
+						if [ "$cword" -eq 2 ]; then
+							mapfile -t COMPREPLY < <(compgen -W "start stop status" -- "$cur")
+						elif [ "$cword" -eq 3 ] && { [ "$prev" = "stop" ] || [ "$prev" = "status" ]; }; then
+							mapfile -t COMPREPLY < <(compgen -W "a b" -- "$cur")
+						fi ;;
 					apikey)
 						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "show set generate clear" -- "$cur") ;;
 					mmproj)
