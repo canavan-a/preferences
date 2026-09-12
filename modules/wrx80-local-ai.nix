@@ -5,12 +5,23 @@ let
 	llamaCppRocm   = pkgs.llama-cpp.override { rocmSupport = true; };
 	llamaCppVulkan = pkgs.llama-cpp.override { vulkanSupport = true; };
 
-	stateDir  = "/var/lib/nixllm";
-	modelsDir = "${stateDir}/models";
-	configF   = "${stateDir}/config";
-	modelF    = "${stateDir}/model";
-	mmprojF   = "${stateDir}/mmproj";
-	apiKeyF   = "${stateDir}/apikey";
+	stateDir     = "/var/lib/nixllm";
+	modelsDir    = "${stateDir}/models";
+	configF      = "${stateDir}/config";
+	modelF       = "${stateDir}/model";
+	mmprojF      = "${stateDir}/mmproj";
+	apiKeyF      = "${stateDir}/apikey";
+	stickyModelF = "${stateDir}/sticky-model";
+
+	# nixllm sticky: two full model copies, one pinned per GPU, fronted by an
+	# nginx ip_hash proxy for session-sticky routing. Backends are
+	# localhost-only; only stickyPort is exposed.
+	stickyPort     = "8090";
+	stickyPortInt  = 8090;
+	stickyPortA    = "8091";
+	stickyPortB    = "8092";
+	stickyPortAInt = 8091;
+	stickyPortBInt = 8092;
 
 	# rocm-smi needs libdrm on LD_LIBRARY_PATH; wrap once and reuse for both the
 	# system package and the nixllm CLI's 'gpu-monitor'.
@@ -29,13 +40,17 @@ let
 	defFlashAttn = "auto";
 	defExtraArgs = "";
 
-	# ExecStart for the systemd unit. Sources the config file over the
+	# ExecStart for the systemd unit(s). Sources the config file over the
 	# defaults, resolves the active model and execs the chosen backend.
-	nixllmLaunch = pkgs.writeShellScript "nixllm-launch" ''
+	# port/modelFile let the same generator serve the single-instance
+	# "nixllm" service and the two "nixllm sticky" instances; gpuIndex, when
+	# set, pins the process to one GPU via ROCR/HIP_VISIBLE_DEVICES so a
+	# sticky pair can each own a distinct 7900XTX.
+	mkNixllmLaunch = { port, modelFile ? modelF, gpuIndex ? null }: pkgs.writeShellScript "nixllm-launch" ''
 		set -euo pipefail
 
 		NIXLLM_HOST="${defHost}"
-		NIXLLM_PORT="${defPort}"
+		NIXLLM_PORT="${port}"
 		NIXLLM_CTX="${defCtx}"
 		NIXLLM_NGL="${defNgl}"
 		NIXLLM_BACKEND="${defBackend}"
@@ -44,17 +59,30 @@ let
 		NIXLLM_PARALLEL=""
 		NIXLLM_REASONING="off"
 		NIXLLM_SAMPLE_ARGS="--temp 0.7 --top-p 0.8 --top-k 20 --min-p 0 --presence-penalty 1.0"
+		NIXLLM_GPU_ORDER=""
 
 		if [ -f "${configF}" ]; then
 			# shellcheck disable=SC1090
 			. "${configF}"
 		fi
 
-		if [ ! -s "${modelF}" ]; then
+		${if gpuIndex != null then ''
+		export ROCR_VISIBLE_DEVICES="${toString gpuIndex}"
+		export HIP_VISIBLE_DEVICES="${toString gpuIndex}"
+		'' else ''
+		# layer-split order across GPUs; "nixllm swap" flips this so the
+		# other card is enumerated first (gets more/fewer layers as needed).
+		if [ -n "$NIXLLM_GPU_ORDER" ]; then
+			export ROCR_VISIBLE_DEVICES="$NIXLLM_GPU_ORDER"
+			export HIP_VISIBLE_DEVICES="$NIXLLM_GPU_ORDER"
+		fi
+		''}
+
+		if [ ! -s "${modelFile}" ]; then
 			echo "nixllm: no model selected - run 'nixllm load <path-to-gguf>'" >&2
 			exit 1
 		fi
-		MODEL="$(cat "${modelF}")"
+		MODEL="$(cat "${modelFile}")"
 		if [ ! -f "$MODEL" ]; then
 			echo "nixllm: active model does not exist: $MODEL" >&2
 			exit 1
@@ -121,15 +149,23 @@ let
 			$NIXLLM_EXTRA_ARGS
 	'';
 
+	nixllmLaunch      = mkNixllmLaunch { port = defPort; };
+	nixllmStickyLaunchA = mkNixllmLaunch { port = stickyPortA; modelFile = stickyModelF; gpuIndex = 0; };
+	nixllmStickyLaunchB = mkNixllmLaunch { port = stickyPortB; modelFile = stickyModelF; gpuIndex = 1; };
+
 	nixllmCli = pkgs.writeShellApplication {
 		name = "nixllm";
-		runtimeInputs = (with pkgs; [ curl coreutils gnugrep gnused gawk systemd jq ]) ++ [ rocmSmiWrapped ];
+		runtimeInputs = (with pkgs; [ curl coreutils gnugrep gnused gawk systemd jq newt ]) ++ [ rocmSmiWrapped ];
 		text = ''
 			MODELS_DIR="${modelsDir}"
 			CONFIG_F="${configF}"
 			MODEL_F="${modelF}"
 			MMPROJ_F="${mmprojF}"
 			API_KEY_F="${apiKeyF}"
+			STICKY_MODEL_F="${stickyModelF}"
+			STICKY_PORT="${stickyPort}"
+			STICKY_PORT_A="${stickyPortA}"
+			STICKY_PORT_B="${stickyPortB}"
 			TOKEN_F="''${XDG_CONFIG_HOME:-$HOME/.config}/nixllm/token"
 
 			banner() {
@@ -203,6 +239,19 @@ ART
 				return 1
 			}
 
+			# health/wait_health on an arbitrary localhost port (used by sticky instances).
+			health_on() {
+				curl -fsS --max-time 2 "http://127.0.0.1:$1/health" 2>/dev/null || true
+			}
+
+			wait_health_on() {
+				for _ in $(seq 1 60); do
+					if health_on "$1" | grep -q '"status"'; then return 0; fi
+					sleep 1
+				done
+				return 1
+			}
+
 			# Bytes -> "X.X" (GiB, one decimal, truncated).
 			gib1() { printf '%d.%d' "$(( $1 / 1073741824 ))" "$(( $1 * 10 / 1073741824 % 10 ))"; }
 
@@ -237,6 +286,10 @@ ART
 
 			case "$cmd" in
 				start)
+					if systemctl is-active --quiet nixllm-sticky-a || systemctl is-active --quiet nixllm-sticky-b; then
+						echo "nixllm: stopping sticky (GPUs must not be shared with the single-instance service)"
+						sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
+					fi
 					sudo systemctl start nixllm
 					if wait_health; then
 						echo "nixllm: up at http://$(host):$(port)  ($(health))"
@@ -250,6 +303,10 @@ ART
 					echo "nixllm: stopped"
 					;;
 				restart)
+					if systemctl is-active --quiet nixllm-sticky-a || systemctl is-active --quiet nixllm-sticky-b; then
+						echo "nixllm: stopping sticky (GPUs must not be shared with the single-instance service)"
+						sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
+					fi
 					sudo systemctl restart nixllm
 					if wait_health; then
 						echo "nixllm: restarted, up at http://$(host):$(port)"
@@ -304,6 +361,18 @@ ART
 						rocm|vulkan) cfg_set NIXLLM_BACKEND "$1"; echo "nixllm: backend -> $1" ;;
 						*) echo "nixllm: backend must be 'rocm' or 'vulkan'" >&2; exit 1 ;;
 					esac
+					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
+					;;
+				swap)
+					cur="$(cfg_get NIXLLM_GPU_ORDER "")"
+					if [ "$cur" = "1,0" ]; then
+						cfg_unset NIXLLM_GPU_ORDER
+						echo "nixllm: gpu order -> 0,1 (default enumeration)"
+					else
+						cfg_set NIXLLM_GPU_ORDER "1,0"
+						echo "nixllm: gpu order -> 1,0 (swapped)"
+					fi
+					echo "nixllm: this only affects the single-instance layer-split ('nixllm sticky' pins GPUs directly)"
 					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
 					;;
 				context|ctx)
@@ -635,18 +704,153 @@ EOF4
 						sleep 1
 					done
 					;;
+				sticky)
+					sub="''${1:-}"
+					[ "$#" -gt 0 ] && shift || true
+					case "$sub" in
+						stop)
+							sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
+							echo "nixllm: sticky stopped"
+							;;
+						status)
+							systemctl --no-pager --full status nixllm-sticky-a nixllm-sticky-b nginx || true
+							echo
+							echo "gpu-a (port $STICKY_PORT_A): $(health_on "$STICKY_PORT_A")"
+							echo "gpu-b (port $STICKY_PORT_B): $(health_on "$STICKY_PORT_B")"
+							;;
+						""|start)
+							shopt -s nullglob
+							found=("$MODELS_DIR"/*.gguf)
+							if [ ''${#found[@]} -eq 0 ]; then
+								echo "nixllm: no models in $MODELS_DIR - run 'nixllm pull' first" >&2
+								exit 1
+							fi
+							args=()
+							for f in "''${found[@]}"; do
+								args+=("$f" "$(basename "$f") ($(du -h "$f" | cut -f1))")
+							done
+							model="$(whiptail --title "nixllm sticky" --menu \
+								"Select a model to run on BOTH GPUs (duplicate mode)" 20 78 10 \
+								"''${args[@]}" 3>&1 1>&2 2>&3)" || { echo "nixllm: cancelled"; exit 0; }
+							clear
+							printf '%s' "$model" > "$STICKY_MODEL_F"
+							echo "nixllm: sticky model -> $model"
+							if systemctl is-active --quiet nixllm; then
+								echo "nixllm: stopping single-instance nixllm service (GPUs must not be shared with sticky)"
+								sudo systemctl stop nixllm
+							fi
+							echo "nixllm: starting nixllm-sticky-a, nixllm-sticky-b, nginx ..."
+							sudo systemctl restart nixllm-sticky-a nixllm-sticky-b
+							sudo systemctl restart nginx
+							if wait_health_on "$STICKY_PORT_A" && wait_health_on "$STICKY_PORT_B"; then
+								echo "nixllm: sticky up at http://0.0.0.0:$STICKY_PORT (gpu-a :$STICKY_PORT_A, gpu-b :$STICKY_PORT_B)"
+							else
+								echo "nixllm: sticky started but a /health check did not come up - check 'nixllm sticky status'" >&2
+								exit 1
+							fi
+
+							command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
+							GPUS="$(list_amdgpu_gpus)"
+							[ -n "$GPUS" ] || { echo "nixllm: no amdgpu cards found" >&2; exit 1; }
+							LOG="/var/log/nginx/nixllm-sticky.log"
+							start_off=0
+							[ -r "$LOG" ] && start_off="$(stat -c%s "$LOG" 2>/dev/null || echo 0)"
+
+							cleanup() {
+								printf '\033[?25h\033[?1049l'
+								echo "nixllm: stopping sticky ..."
+								sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
+								exit 0
+							}
+							printf '\033[?1049h\033[?25l'
+							trap cleanup INT TERM EXIT
+							while :; do
+								j="$(rocm-smi --showtemp --showpower --showuse --showbus --json 2>/dev/null || true)"
+								printf '\033[H\033[2J'
+								echo "nixllm sticky   $(date '+%H:%M:%S')   (Ctrl-C to stop and exit)"
+								echo "model: $(cat "$STICKY_MODEL_F" 2>/dev/null || echo -)"
+								i=0
+								while read -r cn pci hw dev; do
+									[ -n "$cn" ] || continue
+									label="gpu $i"
+									key="$(printf '%s' "$j" | jq -r --arg p "$pci" '
+									  to_entries[] | select((.value["PCI Bus"] // "" | ascii_downcase) == ($p | ascii_downcase)) | .key' 2>/dev/null | head -n1 || true)"
+									[ -n "$key" ] || key="$cn"
+									read -r edge pwr use <<EOF2
+$(printf '%s' "$j" | jq -r --arg k "$key" '
+  (.[$k] // {}) as $c |
+  [ ($c["Temperature (Sensor edge) (C)"]      // "n/a"),
+    ($c["Average Graphics Package Power (W)"] // "n/a"),
+    ($c["GPU use (%)"]                        // "n/a") ] | @tsv' 2>/dev/null)
+EOF2
+									[ -n "$edge" ] || edge="n/a"
+									vram="n/a"
+									if [ -r "$dev/mem_info_vram_used" ] && [ -r "$dev/mem_info_vram_total" ]; then
+										vu="$(cat "$dev/mem_info_vram_used" 2>/dev/null || echo 0)"
+										vt="$(cat "$dev/mem_info_vram_total" 2>/dev/null || echo 0)"
+										case "$vu$vt" in
+											*[!0-9]*|"") ;;
+											*) [ "$vt" -gt 0 ] && vram="$(gib1 "$vu") / $(gib1 "$vt") GiB" ;;
+										esac
+									fi
+									echo
+									printf '  %s (%s, %s)\n' "$label" "$cn" "$pci"
+									printf '    temp %s C   power %s W   util %s %%   vram %s\n' "$edge" "$pwr" "$use" "$vram"
+									i=$(( i + 1 ))
+								done <<EOF3
+$GPUS
+EOF3
+								echo
+								for lbl in "A:$STICKY_PORT_A" "B:$STICKY_PORT_B"; do
+									name="''${lbl%%:*}"; p="''${lbl##*:}"
+									m="$(curl -fsS --max-time 1 "http://127.0.0.1:$p/metrics" 2>/dev/null || true)"
+									if [ -n "$m" ]; then
+										read -r in_s out_s act <<EOF4
+$(printf '%s\n' "$m" | awk '
+  $1=="llamacpp:prompt_tokens_seconds"   {a=$2}
+  $1=="llamacpp:predicted_tokens_seconds"{b=$2}
+  $1=="llamacpp:requests_processing"     {c=$2}
+  END { printf "%s %s %s\n", (a==""?"0":a),(b==""?"0":b),(c==""?"0":c) }')
+EOF4
+										printf '  instance %s (:%s)  in %.0f/s  out %.0f/s  active %s\n' "$name" "$p" "$in_s" "$out_s" "$act"
+									else
+										printf '  instance %s (:%s)  unreachable\n' "$name" "$p"
+									fi
+								done
+								if [ -r "$LOG" ]; then
+									cnt_a="$(tail -c "+$(( start_off + 1 ))" "$LOG" 2>/dev/null | grep -c ":$STICKY_PORT_A" || true)"
+									cnt_b="$(tail -c "+$(( start_off + 1 ))" "$LOG" 2>/dev/null | grep -c ":$STICKY_PORT_B" || true)"
+									echo
+									printf '  routed since start   A: %s   B: %s\n' "$cnt_a" "$cnt_b"
+								fi
+								sleep 1
+							done
+							;;
+						*)
+							echo "nixllm: unknown sticky subcommand '$sub' (start|stop|status)" >&2
+							exit 1
+							;;
+					esac
+					;;
 				headroom)
-					HW="$(find_amdgpu_hwmon || true)"
-					DEV=""; [ -n "$HW" ] && DEV="''${HW%/hwmon/*}"
-					if [ -z "$DEV" ] || [ ! -r "$DEV/mem_info_vram_total" ]; then
-						echo "nixllm: amdgpu VRAM sysfs not found" >&2; exit 1
-					fi
-					vt="$(cat "$DEV/mem_info_vram_total")"
-					vu="$(cat "$DEV/mem_info_vram_used")"
-					tot_mib=$(( vt / 1048576 ))
-					used_mib=$(( vu / 1048576 ))
+					GPUS="$(list_amdgpu_gpus)"
+					[ -n "$GPUS" ] || { echo "nixllm: amdgpu VRAM sysfs not found" >&2; exit 1; }
+					tot_mib=0; used_mib=0; ngpu=0
+					while read -r cn pci hw dev; do
+						[ -n "$cn" ] || continue
+						[ -r "$dev/mem_info_vram_total" ] || continue
+						ct=$(( $(cat "$dev/mem_info_vram_total") / 1048576 ))
+						cu=$(( $(cat "$dev/mem_info_vram_used")  / 1048576 ))
+						tot_mib=$(( tot_mib + ct )); used_mib=$(( used_mib + cu )); ngpu=$(( ngpu + 1 ))
+						printf 'gpu %-7s: %6s MiB total   %6s used   %6s free   (%s)\n' \
+							"$cn" "$ct" "$cu" "$(( ct - cu ))" "$pci"
+					done <<EOF5
+$GPUS
+EOF5
+					[ "$ngpu" -gt 0 ] || { echo "nixllm: amdgpu VRAM sysfs not found" >&2; exit 1; }
 					free_mib=$(( tot_mib - used_mib ))
-					printf 'gpu vram   : %s MiB total   %s used   %s free\n' "$tot_mib" "$used_mib" "$free_mib"
+					[ "$ngpu" -gt 1 ] && printf 'gpu total  : %6s MiB total   %6s used   %6s free   (%s GPUs, model is layer-split)\n' \
+						"$tot_mib" "$used_mib" "$free_mib" "$ngpu"
 
 					nctx="$(cfg_get NIXLLM_CTX "${defCtx}")"
 					par=1; unified=no
@@ -704,8 +908,13 @@ nixllm - manage the llama.cpp server on this host
   nixllm gpu-monitor           live GPU temp / fan / power / util / vram (Ctrl-C to exit)
   nixllm tps                   live token throughput in/out, active/queued reqs, kv use
   nixllm headroom              VRAM budget + largest context that fits
+  nixllm sticky [start]        TUI: pick a model, run one copy per GPU, sticky-routed via nginx
+                                (stops the single-instance nixllm service; port ${stickyPort})
+  nixllm sticky stop           stop both sticky instances + nginx
+  nixllm sticky status         sticky service state + per-instance health
   nixllm load <path.gguf>      select the active model
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
+  nixllm swap                  flip which GPU is enumerated first in the layer-split (restart to apply)
   nixllm context [<n>]         get/set context window in tokens (restart to apply)
   nixllm p [<n>|clear]         get/set --parallel request slots (default: auto)
   nixllm think [off|low|full|<n>]  Qwen3 reasoning budget (default: off)
@@ -723,7 +932,7 @@ nixllm - manage the llama.cpp server on this host
 Config file ($CONFIG_F), KEY="VALUE" per line, overrides derivation defaults:
   NIXLLM_HOST (${defHost})  NIXLLM_PORT (${defPort})  NIXLLM_CTX (${defCtx})
   NIXLLM_NGL (${defNgl})  NIXLLM_BACKEND (${defBackend})  NIXLLM_FLASH_ATTN (${defFlashAttn})  NIXLLM_EXTRA_ARGS
-  NIXLLM_PARALLEL  NIXLLM_REASONING (off)  NIXLLM_SAMPLE_ARGS  (see 'preset')
+  NIXLLM_PARALLEL  NIXLLM_REASONING (off)  NIXLLM_SAMPLE_ARGS  (see 'preset')  NIXLLM_GPU_ORDER (see 'swap')
 Gated 'nixllm pull' auth, in order: \$HF_TOKEN, $TOKEN_F, ~/.cache/huggingface/token.
 EOF
 					;;
@@ -750,8 +959,8 @@ EOF
 					cword=$COMP_CWORD
 				fi
 
-				local cmds="start stop restart status gpu-monitor tps headroom load \
-					backend context ctx parallel p think fa flash preset mmproj apikey \
+				local cmds="start stop restart status gpu-monitor tps headroom sticky load \
+					backend swap context ctx parallel p think fa flash preset mmproj apikey \
 					pull models login logout help"
 
 				if [ "$cword" -eq 1 ]; then
@@ -766,6 +975,8 @@ EOF
 					think)       mapfile -t COMPREPLY < <(compgen -W "off low full" -- "$cur") ;;
 					preset)      mapfile -t COMPREPLY < <(compgen -W "code think clear" -- "$cur") ;;
 					parallel|p)  mapfile -t COMPREPLY < <(compgen -W "clear auto" -- "$cur") ;;
+					sticky)
+						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "start stop status" -- "$cur") ;;
 					apikey)
 						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "show set generate clear" -- "$cur") ;;
 					mmproj)
@@ -802,13 +1013,76 @@ in
 	# The endpoint is unauthenticated unless a key has been set with
 	# 'nixllm apikey set|generate' (then 'nixllm restart'); with a key,
 	# every request except /health needs 'Authorization: Bearer <key>'.
-	networking.firewall.allowedTCPPorts = [ defPortInt ];
+	# nixllm sticky fronts two localhost-only instances with an nginx ip_hash
+	# proxy on stickyPortInt - only that port needs to be reachable.
+	networking.firewall.allowedTCPPorts = [ defPortInt stickyPortInt ];
 
 	# State dir is group-writable by wheel so 'nixllm load/backend/pull' need no sudo.
 	systemd.tmpfiles.rules = [
 		"d ${stateDir} 0775 llm wheel -"
 		"d ${modelsDir} 0775 llm wheel -"
 	];
+
+	# nixllm sticky: one llama-server per GPU (ROCR/HIP_VISIBLE_DEVICES pinned),
+	# same model, fronted by nginx ip_hash for session-sticky routing. Started
+	# and stopped together by 'nixllm sticky', never at boot.
+	systemd.services.nixllm-sticky-a = {
+		description = "llama.cpp server (nixllm sticky, GPU 0)";
+		serviceConfig = {
+			ExecStart = nixllmStickyLaunchA;
+			User = "llm";
+			Group = "llm";
+			Restart = "on-failure";
+			RestartSec = 2;
+			SupplementaryGroups = [ "video" "render" ];
+			Environment = [
+				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
+			];
+		};
+	};
+	systemd.services.nixllm-sticky-b = {
+		description = "llama.cpp server (nixllm sticky, GPU 1)";
+		serviceConfig = {
+			ExecStart = nixllmStickyLaunchB;
+			User = "llm";
+			Group = "llm";
+			Restart = "on-failure";
+			RestartSec = 2;
+			SupplementaryGroups = [ "video" "render" ];
+			Environment = [
+				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
+			];
+		};
+	};
+
+	# Reverse proxy for sticky mode only. ip_hash keeps a given client on the
+	# same backend so its KV cache is actually reused turn-to-turn (llama.cpp
+	# instances share no context with each other). Never auto-started - the
+	# 'nixllm sticky' subcommand starts/stops it alongside the two instances.
+	services.nginx = {
+		enable = true;
+		recommendedProxySettings = true;
+		upstreams.nixllm_sticky = {
+			extraConfig = "ip_hash;";
+			servers = {
+				"127.0.0.1:${stickyPortA}" = {};
+				"127.0.0.1:${stickyPortB}" = {};
+			};
+		};
+		virtualHosts."nixllm-sticky" = {
+			listen = [ { addr = "0.0.0.0"; port = stickyPortInt; } ];
+			locations."/".proxyPass = "http://nixllm_sticky";
+			extraConfig = ''
+				access_log /var/log/nginx/nixllm-sticky.log combined_upstream;
+			'';
+		};
+		appendHttpConfig = ''
+			log_format combined_upstream '$remote_addr - $remote_user [$time_local] '
+				'"$request" $status $body_bytes_sent "$http_referer" '
+				'"$http_user_agent" -> $upstream_addr';
+		'';
+	};
+	systemd.services.nginx.wantedBy = lib.mkForce [ ];
 
 	# Started on demand by 'nixllm start' - deliberately not in multi-user.target.
 	systemd.services.nixllm = {
