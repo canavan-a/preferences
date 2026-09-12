@@ -15,7 +15,8 @@ let
 
 	# nixllm double: two full model copies, one pinned per GPU, fronted by an
 	# nginx ip_hash proxy for session-sticky routing. Backends are
-	# localhost-only; only doublePort is exposed.
+	# localhost-only; only doublePort (and, for smart-routed compatibility
+	# with plain "nixllm" clients, the main defPort) are exposed.
 	doublePort     = "8090";
 	doublePortInt  = 8090;
 	doublePortA    = "8091";
@@ -160,13 +161,8 @@ let
 	nixllmLaunch      = mkNixllmLaunch { port = defPort; };
 	nixllmDoubleLaunchA = mkNixllmLaunch { port = doublePortA; modelFile = doubleModelF; gpuIndex = 0; };
 	nixllmDoubleLaunchB = mkNixllmLaunch { port = doublePortB; modelFile = doubleModelF; gpuIndex = 1; };
-
-	# nixllm single: same GPU-pinned launch as double, but on the main port
-	# (defPort) with no nginx in front - a drop-in replacement for the plain
-	# "nixllm" service that just pins one GPU. Reuses modelF (the regular
-	# 'nixllm load' model), not doubleModelF.
-	nixllmSingleLaunchA = mkNixllmLaunch { port = defPort; gpuIndex = 0; };
-	nixllmSingleLaunchB = mkNixllmLaunch { port = defPort; gpuIndex = 1; };
+	# 'nixllm single' reuses these same two units/ports directly - it just
+	# starts one of them instead of both, leaving the other GPU untouched.
 
 	nixllmCli = pkgs.writeShellApplication {
 		name = "nixllm";
@@ -305,10 +301,6 @@ ART
 						echo "nixllm: stopping double (GPUs must not be shared with the single-instance service)"
 						sudo systemctl stop nixllm-double-a nixllm-double-b nginx 2>/dev/null || true
 					fi
-					if systemctl is-active --quiet nixllm-single-a || systemctl is-active --quiet nixllm-single-b; then
-						echo "nixllm: stopping single (shares the main port with the single-instance service)"
-						sudo systemctl stop nixllm-single-a nixllm-single-b 2>/dev/null || true
-					fi
 					sudo systemctl start nixllm
 					if wait_health; then
 						echo "nixllm: up at http://$(host):$(port)  ($(health))"
@@ -325,10 +317,6 @@ ART
 					if systemctl is-active --quiet nixllm-double-a || systemctl is-active --quiet nixllm-double-b; then
 						echo "nixllm: stopping double (GPUs must not be shared with the single-instance service)"
 						sudo systemctl stop nixllm-double-a nixllm-double-b nginx 2>/dev/null || true
-					fi
-					if systemctl is-active --quiet nixllm-single-a || systemctl is-active --quiet nixllm-single-b; then
-						echo "nixllm: stopping single (shares the main port with the single-instance service)"
-						sudo systemctl stop nixllm-single-a nixllm-single-b 2>/dev/null || true
 					fi
 					sudo systemctl restart nixllm
 					if wait_health; then
@@ -762,10 +750,6 @@ EOF4
 								echo "nixllm: stopping single-instance nixllm service (GPUs must not be shared with double)"
 								sudo systemctl stop nixllm
 							fi
-							if systemctl is-active --quiet nixllm-single-a || systemctl is-active --quiet nixllm-single-b; then
-								echo "nixllm: stopping single (GPUs must not be shared with double)"
-								sudo systemctl stop nixllm-single-a nixllm-single-b 2>/dev/null || true
-							fi
 							echo "nixllm: starting nixllm-double-a, nixllm-double-b, nginx ..."
 							sudo systemctl restart nixllm-double-a nixllm-double-b
 							sudo systemctl restart nginx
@@ -870,14 +854,14 @@ EOF4
 						stop)
 							which="''${1:-}"
 							case "$which" in
-								a) unit=nixllm-single-a ;;
-								b) unit=nixllm-single-b ;;
+								a) unit=nixllm-double-a ;;
+								b) unit=nixllm-double-b ;;
 								"")
 									a_active=false; b_active=false
-									systemctl is-active --quiet nixllm-single-a && a_active=true
-									systemctl is-active --quiet nixllm-single-b && b_active=true
-									if [ "$a_active" = true ] && [ "$b_active" = false ]; then which=a; unit=nixllm-single-a
-									elif [ "$b_active" = true ] && [ "$a_active" = false ]; then which=b; unit=nixllm-single-b
+									systemctl is-active --quiet nixllm-double-a && a_active=true
+									systemctl is-active --quiet nixllm-double-b && b_active=true
+									if [ "$a_active" = true ] && [ "$b_active" = false ]; then which=a; unit=nixllm-double-a
+									elif [ "$b_active" = true ] && [ "$a_active" = false ]; then which=b; unit=nixllm-double-b
 									elif [ "$a_active" = true ] && [ "$b_active" = true ]; then
 										echo "nixllm: both gpu-a and gpu-b are active - specify 'nixllm single stop a' or 'nixllm single stop b'" >&2
 										exit 1
@@ -889,18 +873,23 @@ EOF4
 								*) echo "nixllm: unknown gpu '$which' (a|b)" >&2; exit 1 ;;
 							esac
 							sudo systemctl stop "$unit" 2>/dev/null || true
+							if ! systemctl is-active --quiet nixllm-double-a && ! systemctl is-active --quiet nixllm-double-b; then
+								sudo systemctl stop nginx 2>/dev/null || true
+							fi
 							echo "nixllm: single ($which) stopped"
 							;;
 						status)
 							which="''${1:-}"
 							case "$which" in
-								a) systemctl --no-pager --full status nixllm-single-a || true
-									echo; echo "gpu-a (port $(port)): $(health)" ;;
-								b) systemctl --no-pager --full status nixllm-single-b || true
-									echo; echo "gpu-b (port $(port)): $(health)" ;;
-								"") systemctl --no-pager --full status nixllm-single-a nixllm-single-b || true
+								a) systemctl --no-pager --full status nixllm-double-a || true
+									echo; echo "gpu-a (port $DOUBLE_PORT_A): $(health_on "$DOUBLE_PORT_A")" ;;
+								b) systemctl --no-pager --full status nixllm-double-b || true
+									echo; echo "gpu-b (port $DOUBLE_PORT_B): $(health_on "$DOUBLE_PORT_B")" ;;
+								"") systemctl --no-pager --full status nixllm-double-a nixllm-double-b nginx || true
 									echo
-									echo "gpu-a/gpu-b share port $(port) - at most one runs at a time: $(health)" ;;
+									echo "gpu-a (port $DOUBLE_PORT_A): $(health_on "$DOUBLE_PORT_A")"
+									echo "gpu-b (port $DOUBLE_PORT_B): $(health_on "$DOUBLE_PORT_B")"
+									echo "smart-routed at :$(port) and :$DOUBLE_PORT too" ;;
 								*) echo "nixllm: unknown gpu '$which' (a|b)" >&2; exit 1 ;;
 							esac
 							;;
@@ -922,30 +911,31 @@ EOF4
 
 							gpu="$(whiptail --title "nixllm single" --menu \
 								"Select which GPU to run on (the other GPU is left untouched)" 15 70 2 \
-								a "GPU 0 (nixllm-single-a)" \
-								b "GPU 1 (nixllm-single-b)" \
+								a "GPU 0 (nixllm-double-a, port $DOUBLE_PORT_A)" \
+								b "GPU 1 (nixllm-double-b, port $DOUBLE_PORT_B)" \
 								3>&1 1>&2 2>&3)" || { echo "nixllm: cancelled"; exit 0; }
 							clear
 
 							case "$gpu" in
-								a) unit=nixllm-single-a; other=nixllm-single-b ;;
-								b) unit=nixllm-single-b; other=nixllm-single-a ;;
+								a) unit=nixllm-double-a; gpuport="$DOUBLE_PORT_A" ;;
+								b) unit=nixllm-double-b; gpuport="$DOUBLE_PORT_B" ;;
 							esac
 
-							printf '%s' "$model" > "$MODEL_F"
-							echo "nixllm: single model -> $model"
+							# Same units/model file/ports as 'nixllm double' - single just
+							# starts one of the two instead of both.
+							printf '%s' "$model" > "$DOUBLE_MODEL_F"
+							echo "nixllm: single model (gpu-$gpu) -> $model"
 							if systemctl is-active --quiet nixllm; then
-								echo "nixllm: stopping single-instance nixllm service (shares the main port)"
+								echo "nixllm: stopping single-instance nixllm service (GPU must not be shared)"
 								sudo systemctl stop nixllm
-							fi
-							if systemctl is-active --quiet "$other"; then
-								echo "nixllm: stopping $other (shares the main port)"
-								sudo systemctl stop "$other"
 							fi
 							echo "nixllm: starting $unit ..."
 							sudo systemctl restart "$unit"
-							if wait_health; then
-								echo "nixllm: single up on gpu-$gpu -> http://$(host):$(port)"
+							echo "nixllm: starting nginx (smart routing on :$(port) and :$DOUBLE_PORT) ..."
+							sudo systemctl restart nginx
+							if wait_health_on "$gpuport"; then
+								echo "nixllm: single up on gpu-$gpu -> http://0.0.0.0:$gpuport"
+								echo "nixllm:   also reachable via smart routing at http://0.0.0.0:$(port) and http://0.0.0.0:$DOUBLE_PORT"
 							else
 								echo "nixllm: single started but /health did not come up - check 'nixllm single status $gpu'" >&2
 								exit 1
@@ -960,6 +950,9 @@ EOF4
 								printf '\033[?25h\033[?1049l'
 								echo "nixllm: stopping single ($unit) ..."
 								sudo systemctl stop "$unit" 2>/dev/null || true
+								if ! systemctl is-active --quiet nixllm-double-a && ! systemctl is-active --quiet nixllm-double-b; then
+									sudo systemctl stop nginx 2>/dev/null || true
+								fi
 								exit 0
 							}
 							printf '\033[?1049h\033[?25l'
@@ -968,7 +961,7 @@ EOF4
 								j="$(rocm-smi --showtemp --showpower --showuse --showbus --json 2>/dev/null || true)"
 								printf '\033[H\033[2J'
 								echo "nixllm single (gpu-$gpu)   $(date '+%H:%M:%S')   (Ctrl-C to stop and exit)"
-								echo "model: $(cat "$MODEL_F" 2>/dev/null || echo -)"
+								echo "model: $(cat "$DOUBLE_MODEL_F" 2>/dev/null || echo -)"
 								i=0
 								while read -r cn pci hw dev; do
 									[ -n "$cn" ] || continue
@@ -1002,7 +995,7 @@ EOF2
 $GPUS
 EOF3
 								echo
-								m="$(curl -fsS --max-time 1 "''${mauth[@]}" "http://127.0.0.1:$(port)/metrics" 2>/dev/null || true)"
+								m="$(curl -fsS --max-time 1 "''${mauth[@]}" "http://127.0.0.1:$gpuport/metrics" 2>/dev/null || true)"
 								if [ -n "$m" ]; then
 									read -r in_s out_s act <<EOF4
 $(printf '%s\n' "$m" | awk '
@@ -1011,9 +1004,9 @@ $(printf '%s\n' "$m" | awk '
   $1=="llamacpp:requests_processing"     {c=$2}
   END { printf "%s %s %s\n", (a==""?"0":a),(b==""?"0":b),(c==""?"0":c) }')
 EOF4
-									printf '  instance gpu-%s (:%s)  in %.0f/s  out %.0f/s  active %s\n' "$gpu" "$(port)" "$in_s" "$out_s" "$act"
+									printf '  instance gpu-%s (:%s)  in %.0f/s  out %.0f/s  active %s\n' "$gpu" "$gpuport" "$in_s" "$out_s" "$act"
 								else
-									printf '  instance gpu-%s (:%s)  unreachable\n' "$gpu" "$(port)"
+									printf '  instance gpu-%s (:%s)  unreachable\n' "$gpu" "$gpuport"
 								fi
 								sleep 1
 							done
@@ -1102,11 +1095,12 @@ nixllm - manage the llama.cpp server on this host
   nixllm headroom              VRAM budget + largest context that fits
   nixllm double [start]        TUI: pick a model, run one copy per GPU
                                 (stops the single-instance nixllm service)
-                                gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}   auto ip_hash proxy: port ${doublePort}
+                                gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}   smart-routed: port ${doublePort} and ${defPort}
   nixllm double stop           stop both double instances + nginx
   nixllm double status         double service state + per-instance health
   nixllm single [start]        TUI: pick a model and ONE GPU, leaves the other GPU untouched
-                                runs on the main port (${defPort}), no nginx routing
+                                same ports/units as double - gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}
+                                also smart-routed at ${doublePort} and ${defPort} (falls over to whichever GPU is up)
   nixllm single stop [a|b]     stop the single instance (infers gpu if only one is running)
   nixllm single status [a|b]   single service state + health
   nixllm load <path.gguf>      select the active model
@@ -1269,49 +1263,7 @@ in
 		};
 	};
 
-	# nixllm single: one GPU-pinned llama-server on the main port (defPort),
-	# no nginx routing. Only one of these (or plain "nixllm") ever runs at a
-	# time, since they share defPort. Started/stopped by 'nixllm single'.
-	systemd.services.nixllm-single-a = {
-		description = "llama.cpp server (nixllm single, GPU 0)";
-		serviceConfig = {
-			ExecStart = nixllmSingleLaunchA;
-			User = "llm";
-			Group = "llm";
-			Restart = "on-failure";
-			RestartSec = 2;
-			# llama-server won't exit while it has in-flight requests to cancel;
-			# a client that keeps retrying against a stopping instance can wedge
-			# a graceful shutdown indefinitely. Force it after a short grace
-			# period so 'stop'/'restart'/Ctrl-C never hangs for minutes.
-			TimeoutStopSec = 15;
-			SupplementaryGroups = [ "video" "render" ];
-			Environment = [
-				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
-			];
-		};
-	};
-	systemd.services.nixllm-single-b = {
-		description = "llama.cpp server (nixllm single, GPU 1)";
-		serviceConfig = {
-			ExecStart = nixllmSingleLaunchB;
-			User = "llm";
-			Group = "llm";
-			Restart = "on-failure";
-			RestartSec = 2;
-			# llama-server won't exit while it has in-flight requests to cancel;
-			# a client that keeps retrying against a stopping instance can wedge
-			# a graceful shutdown indefinitely. Force it after a short grace
-			# period so 'stop'/'restart'/Ctrl-C never hangs for minutes.
-			TimeoutStopSec = 15;
-			SupplementaryGroups = [ "video" "render" ];
-			Environment = [
-				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
-			];
-		};
-	};
-
-	# Reverse proxy for double mode only. ip_hash keeps a given client on the
+	# Reverse proxy for double/single. ip_hash keeps a given client on the
 	# same backend so its KV cache is actually reused turn-to-turn (llama.cpp
 	# instances share no context with each other). Never auto-started - the
 	# 'nixllm double' subcommand starts/stops it alongside the two instances.
@@ -1327,6 +1279,17 @@ in
 		};
 		virtualHosts."nixllm-double" = {
 			listen = [ { addr = "0.0.0.0"; port = doublePortInt; } ];
+			locations."/".proxyPass = "http://nixllm_double";
+			extraConfig = ''
+				access_log /var/log/nginx/nixllm-double.log combined_upstream;
+			'';
+		};
+		# Same ip_hash upstream, also fronted on the main port so clients already
+		# pointed at defPort keep working no matter which GPU(s) are actually up -
+		# 'nixllm single' starts just one of nixllm-double-a/b and still gets
+		# routed here; nginx falls over to the other backend on connection error.
+		virtualHosts."nixllm-main" = {
+			listen = [ { addr = "0.0.0.0"; port = defPortInt; } ];
 			locations."/".proxyPass = "http://nixllm_double";
 			extraConfig = ''
 				access_log /var/log/nginx/nixllm-double.log combined_upstream;
