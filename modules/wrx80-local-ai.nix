@@ -11,17 +11,17 @@ let
 	modelF       = "${stateDir}/model";
 	mmprojF      = "${stateDir}/mmproj";
 	apiKeyF      = "${stateDir}/apikey";
-	stickyModelF = "${stateDir}/sticky-model";
+	doubleModelF = "${stateDir}/double-model";
 
-	# nixllm sticky: two full model copies, one pinned per GPU, fronted by an
+	# nixllm double: two full model copies, one pinned per GPU, fronted by an
 	# nginx ip_hash proxy for session-sticky routing. Backends are
-	# localhost-only; only stickyPort is exposed.
-	stickyPort     = "8090";
-	stickyPortInt  = 8090;
-	stickyPortA    = "8091";
-	stickyPortB    = "8092";
-	stickyPortAInt = 8091;
-	stickyPortBInt = 8092;
+	# localhost-only; only doublePort is exposed.
+	doublePort     = "8090";
+	doublePortInt  = 8090;
+	doublePortA    = "8091";
+	doublePortB    = "8092";
+	doublePortAInt = 8091;
+	doublePortBInt = 8092;
 
 	# rocm-smi needs libdrm on LD_LIBRARY_PATH; wrap once and reuse for both the
 	# system package and the nixllm CLI's 'gpu-monitor'.
@@ -43,9 +43,9 @@ let
 	# ExecStart for the systemd unit(s). Sources the config file over the
 	# defaults, resolves the active model and execs the chosen backend.
 	# port/modelFile let the same generator serve the single-instance
-	# "nixllm" service and the two "nixllm sticky" instances; gpuIndex, when
+	# "nixllm" service and the two "nixllm double" instances; gpuIndex, when
 	# set, pins the process to one GPU via ROCR/HIP_VISIBLE_DEVICES so a
-	# sticky pair can each own a distinct 7900XTX.
+	# double pair can each own a distinct 7900XTX.
 	mkNixllmLaunch = { port, modelFile ? modelF, gpuIndex ? null }: pkgs.writeShellScript "nixllm-launch" ''
 		set -euo pipefail
 
@@ -150,8 +150,8 @@ let
 	'';
 
 	nixllmLaunch      = mkNixllmLaunch { port = defPort; };
-	nixllmStickyLaunchA = mkNixllmLaunch { port = stickyPortA; modelFile = stickyModelF; gpuIndex = 0; };
-	nixllmStickyLaunchB = mkNixllmLaunch { port = stickyPortB; modelFile = stickyModelF; gpuIndex = 1; };
+	nixllmDoubleLaunchA = mkNixllmLaunch { port = doublePortA; modelFile = doubleModelF; gpuIndex = 0; };
+	nixllmDoubleLaunchB = mkNixllmLaunch { port = doublePortB; modelFile = doubleModelF; gpuIndex = 1; };
 
 	nixllmCli = pkgs.writeShellApplication {
 		name = "nixllm";
@@ -162,10 +162,10 @@ let
 			MODEL_F="${modelF}"
 			MMPROJ_F="${mmprojF}"
 			API_KEY_F="${apiKeyF}"
-			STICKY_MODEL_F="${stickyModelF}"
-			STICKY_PORT="${stickyPort}"
-			STICKY_PORT_A="${stickyPortA}"
-			STICKY_PORT_B="${stickyPortB}"
+			DOUBLE_MODEL_F="${doubleModelF}"
+			DOUBLE_PORT="${doublePort}"
+			DOUBLE_PORT_A="${doublePortA}"
+			DOUBLE_PORT_B="${doublePortB}"
 			TOKEN_F="''${XDG_CONFIG_HOME:-$HOME/.config}/nixllm/token"
 
 			banner() {
@@ -239,7 +239,7 @@ ART
 				return 1
 			}
 
-			# health/wait_health on an arbitrary localhost port (used by sticky instances).
+			# health/wait_health on an arbitrary localhost port (used by double instances).
 			health_on() {
 				curl -fsS --max-time 2 "http://127.0.0.1:$1/health" 2>/dev/null || true
 			}
@@ -286,9 +286,9 @@ ART
 
 			case "$cmd" in
 				start)
-					if systemctl is-active --quiet nixllm-sticky-a || systemctl is-active --quiet nixllm-sticky-b; then
-						echo "nixllm: stopping sticky (GPUs must not be shared with the single-instance service)"
-						sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
+					if systemctl is-active --quiet nixllm-double-a || systemctl is-active --quiet nixllm-double-b; then
+						echo "nixllm: stopping double (GPUs must not be shared with the single-instance service)"
+						sudo systemctl stop nixllm-double-a nixllm-double-b nginx 2>/dev/null || true
 					fi
 					sudo systemctl start nixllm
 					if wait_health; then
@@ -303,9 +303,9 @@ ART
 					echo "nixllm: stopped"
 					;;
 				restart)
-					if systemctl is-active --quiet nixllm-sticky-a || systemctl is-active --quiet nixllm-sticky-b; then
-						echo "nixllm: stopping sticky (GPUs must not be shared with the single-instance service)"
-						sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
+					if systemctl is-active --quiet nixllm-double-a || systemctl is-active --quiet nixllm-double-b; then
+						echo "nixllm: stopping double (GPUs must not be shared with the single-instance service)"
+						sudo systemctl stop nixllm-double-a nixllm-double-b nginx 2>/dev/null || true
 					fi
 					sudo systemctl restart nixllm
 					if wait_health; then
@@ -372,7 +372,7 @@ ART
 						cfg_set NIXLLM_GPU_ORDER "1,0"
 						echo "nixllm: gpu order -> 1,0 (swapped)"
 					fi
-					echo "nixllm: this only affects the single-instance layer-split ('nixllm sticky' pins GPUs directly)"
+					echo "nixllm: this only affects the single-instance layer-split ('nixllm double' pins GPUs directly)"
 					systemctl is-active --quiet nixllm && echo "nixllm: run 'nixllm restart' to apply" || true
 					;;
 				context|ctx)
@@ -704,19 +704,19 @@ EOF4
 						sleep 1
 					done
 					;;
-				sticky)
+				double)
 					sub="''${1:-}"
 					[ "$#" -gt 0 ] && shift || true
 					case "$sub" in
 						stop)
-							sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
-							echo "nixllm: sticky stopped"
+							sudo systemctl stop nixllm-double-a nixllm-double-b nginx 2>/dev/null || true
+							echo "nixllm: double stopped"
 							;;
 						status)
-							systemctl --no-pager --full status nixllm-sticky-a nixllm-sticky-b nginx || true
+							systemctl --no-pager --full status nixllm-double-a nixllm-double-b nginx || true
 							echo
-							echo "gpu-a (port $STICKY_PORT_A): $(health_on "$STICKY_PORT_A")"
-							echo "gpu-b (port $STICKY_PORT_B): $(health_on "$STICKY_PORT_B")"
+							echo "gpu-a (port $DOUBLE_PORT_A): $(health_on "$DOUBLE_PORT_A")"
+							echo "gpu-b (port $DOUBLE_PORT_B): $(health_on "$DOUBLE_PORT_B")"
 							;;
 						""|start)
 							shopt -s nullglob
@@ -729,37 +729,40 @@ EOF4
 							for f in "''${found[@]}"; do
 								args+=("$f" "$(basename "$f") ($(du -h "$f" | cut -f1))")
 							done
-							model="$(whiptail --title "nixllm sticky" --menu \
+							model="$(whiptail --title "nixllm double" --menu \
 								"Select a model to run on BOTH GPUs (duplicate mode)" 20 78 10 \
 								"''${args[@]}" 3>&1 1>&2 2>&3)" || { echo "nixllm: cancelled"; exit 0; }
 							clear
-							printf '%s' "$model" > "$STICKY_MODEL_F"
-							echo "nixllm: sticky model -> $model"
+							printf '%s' "$model" > "$DOUBLE_MODEL_F"
+							echo "nixllm: double model -> $model"
 							if systemctl is-active --quiet nixllm; then
-								echo "nixllm: stopping single-instance nixllm service (GPUs must not be shared with sticky)"
+								echo "nixllm: stopping single-instance nixllm service (GPUs must not be shared with double)"
 								sudo systemctl stop nixllm
 							fi
-							echo "nixllm: starting nixllm-sticky-a, nixllm-sticky-b, nginx ..."
-							sudo systemctl restart nixllm-sticky-a nixllm-sticky-b
+							echo "nixllm: starting nixllm-double-a, nixllm-double-b, nginx ..."
+							sudo systemctl restart nixllm-double-a nixllm-double-b
 							sudo systemctl restart nginx
-							if wait_health_on "$STICKY_PORT_A" && wait_health_on "$STICKY_PORT_B"; then
-								echo "nixllm: sticky up at http://0.0.0.0:$STICKY_PORT (gpu-a :$STICKY_PORT_A, gpu-b :$STICKY_PORT_B)"
+							if wait_health_on "$DOUBLE_PORT_A" && wait_health_on "$DOUBLE_PORT_B"; then
+								echo "nixllm: double up"
+								echo "nixllm:   gpu-a -> http://0.0.0.0:$DOUBLE_PORT_A  (point one client here)"
+								echo "nixllm:   gpu-b -> http://0.0.0.0:$DOUBLE_PORT_B  (point the other client here)"
+								echo "nixllm:   auto ip_hash proxy also available at http://0.0.0.0:$DOUBLE_PORT"
 							else
-								echo "nixllm: sticky started but a /health check did not come up - check 'nixllm sticky status'" >&2
+								echo "nixllm: double started but a /health check did not come up - check 'nixllm double status'" >&2
 								exit 1
 							fi
 
 							command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
 							GPUS="$(list_amdgpu_gpus)"
 							[ -n "$GPUS" ] || { echo "nixllm: no amdgpu cards found" >&2; exit 1; }
-							LOG="/var/log/nginx/nixllm-sticky.log"
+							LOG="/var/log/nginx/nixllm-double.log"
 							start_off=0
 							[ -r "$LOG" ] && start_off="$(stat -c%s "$LOG" 2>/dev/null || echo 0)"
 
 							cleanup() {
 								printf '\033[?25h\033[?1049l'
-								echo "nixllm: stopping sticky ..."
-								sudo systemctl stop nixllm-sticky-a nixllm-sticky-b nginx 2>/dev/null || true
+								echo "nixllm: stopping double ..."
+								sudo systemctl stop nixllm-double-a nixllm-double-b nginx 2>/dev/null || true
 								exit 0
 							}
 							printf '\033[?1049h\033[?25l'
@@ -767,8 +770,8 @@ EOF4
 							while :; do
 								j="$(rocm-smi --showtemp --showpower --showuse --showbus --json 2>/dev/null || true)"
 								printf '\033[H\033[2J'
-								echo "nixllm sticky   $(date '+%H:%M:%S')   (Ctrl-C to stop and exit)"
-								echo "model: $(cat "$STICKY_MODEL_F" 2>/dev/null || echo -)"
+								echo "nixllm double   $(date '+%H:%M:%S')   (Ctrl-C to stop and exit)"
+								echo "model: $(cat "$DOUBLE_MODEL_F" 2>/dev/null || echo -)"
 								i=0
 								while read -r cn pci hw dev; do
 									[ -n "$cn" ] || continue
@@ -801,7 +804,7 @@ EOF2
 $GPUS
 EOF3
 								echo
-								for lbl in "A:$STICKY_PORT_A" "B:$STICKY_PORT_B"; do
+								for lbl in "A:$DOUBLE_PORT_A" "B:$DOUBLE_PORT_B"; do
 									name="''${lbl%%:*}"; p="''${lbl##*:}"
 									m="$(curl -fsS --max-time 1 "http://127.0.0.1:$p/metrics" 2>/dev/null || true)"
 									if [ -n "$m" ]; then
@@ -818,8 +821,8 @@ EOF4
 									fi
 								done
 								if [ -r "$LOG" ]; then
-									cnt_a="$(tail -c "+$(( start_off + 1 ))" "$LOG" 2>/dev/null | grep -c ":$STICKY_PORT_A" || true)"
-									cnt_b="$(tail -c "+$(( start_off + 1 ))" "$LOG" 2>/dev/null | grep -c ":$STICKY_PORT_B" || true)"
+									cnt_a="$(tail -c "+$(( start_off + 1 ))" "$LOG" 2>/dev/null | grep -c ":$DOUBLE_PORT_A" || true)"
+									cnt_b="$(tail -c "+$(( start_off + 1 ))" "$LOG" 2>/dev/null | grep -c ":$DOUBLE_PORT_B" || true)"
 									echo
 									printf '  routed since start   A: %s   B: %s\n' "$cnt_a" "$cnt_b"
 								fi
@@ -827,7 +830,7 @@ EOF4
 							done
 							;;
 						*)
-							echo "nixllm: unknown sticky subcommand '$sub' (start|stop|status)" >&2
+							echo "nixllm: unknown double subcommand '$sub' (start|stop|status)" >&2
 							exit 1
 							;;
 					esac
@@ -908,10 +911,11 @@ nixllm - manage the llama.cpp server on this host
   nixllm gpu-monitor           live GPU temp / fan / power / util / vram (Ctrl-C to exit)
   nixllm tps                   live token throughput in/out, active/queued reqs, kv use
   nixllm headroom              VRAM budget + largest context that fits
-  nixllm sticky [start]        TUI: pick a model, run one copy per GPU, sticky-routed via nginx
-                                (stops the single-instance nixllm service; port ${stickyPort})
-  nixllm sticky stop           stop both sticky instances + nginx
-  nixllm sticky status         sticky service state + per-instance health
+  nixllm double [start]        TUI: pick a model, run one copy per GPU
+                                (stops the single-instance nixllm service)
+                                gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}   auto ip_hash proxy: port ${doublePort}
+  nixllm double stop           stop both double instances + nginx
+  nixllm double status         double service state + per-instance health
   nixllm load <path.gguf>      select the active model
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
   nixllm swap                  flip which GPU is enumerated first in the layer-split (restart to apply)
@@ -959,7 +963,7 @@ EOF
 					cword=$COMP_CWORD
 				fi
 
-				local cmds="start stop restart status gpu-monitor tps headroom sticky load \
+				local cmds="start stop restart status gpu-monitor tps headroom double load \
 					backend swap context ctx parallel p think fa flash preset mmproj apikey \
 					pull models login logout help"
 
@@ -975,7 +979,7 @@ EOF
 					think)       mapfile -t COMPREPLY < <(compgen -W "off low full" -- "$cur") ;;
 					preset)      mapfile -t COMPREPLY < <(compgen -W "code think clear" -- "$cur") ;;
 					parallel|p)  mapfile -t COMPREPLY < <(compgen -W "clear auto" -- "$cur") ;;
-					sticky)
+					double)
 						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "start stop status" -- "$cur") ;;
 					apikey)
 						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "show set generate clear" -- "$cur") ;;
@@ -1013,9 +1017,10 @@ in
 	# The endpoint is unauthenticated unless a key has been set with
 	# 'nixllm apikey set|generate' (then 'nixllm restart'); with a key,
 	# every request except /health needs 'Authorization: Bearer <key>'.
-	# nixllm sticky fronts two localhost-only instances with an nginx ip_hash
-	# proxy on stickyPortInt - only that port needs to be reachable.
-	networking.firewall.allowedTCPPorts = [ defPortInt stickyPortInt ];
+	# nixllm double exposes each GPU instance directly (doublePortAInt/B) for
+	# manual per-session routing, plus an nginx ip_hash proxy on doublePortInt
+	# for automatic client-IP-based sticky routing if you want it instead.
+	networking.firewall.allowedTCPPorts = [ defPortInt doublePortInt doublePortAInt doublePortBInt ];
 
 	# State dir is group-writable by wheel so 'nixllm load/backend/pull' need no sudo.
 	systemd.tmpfiles.rules = [
@@ -1023,13 +1028,13 @@ in
 		"d ${modelsDir} 0775 llm wheel -"
 	];
 
-	# nixllm sticky: one llama-server per GPU (ROCR/HIP_VISIBLE_DEVICES pinned),
+	# nixllm double: one llama-server per GPU (ROCR/HIP_VISIBLE_DEVICES pinned),
 	# same model, fronted by nginx ip_hash for session-sticky routing. Started
-	# and stopped together by 'nixllm sticky', never at boot.
-	systemd.services.nixllm-sticky-a = {
-		description = "llama.cpp server (nixllm sticky, GPU 0)";
+	# and stopped together by 'nixllm double', never at boot.
+	systemd.services.nixllm-double-a = {
+		description = "llama.cpp server (nixllm double, GPU 0)";
 		serviceConfig = {
-			ExecStart = nixllmStickyLaunchA;
+			ExecStart = nixllmDoubleLaunchA;
 			User = "llm";
 			Group = "llm";
 			Restart = "on-failure";
@@ -1040,10 +1045,10 @@ in
 			];
 		};
 	};
-	systemd.services.nixllm-sticky-b = {
-		description = "llama.cpp server (nixllm sticky, GPU 1)";
+	systemd.services.nixllm-double-b = {
+		description = "llama.cpp server (nixllm double, GPU 1)";
 		serviceConfig = {
-			ExecStart = nixllmStickyLaunchB;
+			ExecStart = nixllmDoubleLaunchB;
 			User = "llm";
 			Group = "llm";
 			Restart = "on-failure";
@@ -1055,25 +1060,25 @@ in
 		};
 	};
 
-	# Reverse proxy for sticky mode only. ip_hash keeps a given client on the
+	# Reverse proxy for double mode only. ip_hash keeps a given client on the
 	# same backend so its KV cache is actually reused turn-to-turn (llama.cpp
 	# instances share no context with each other). Never auto-started - the
-	# 'nixllm sticky' subcommand starts/stops it alongside the two instances.
+	# 'nixllm double' subcommand starts/stops it alongside the two instances.
 	services.nginx = {
 		enable = true;
 		recommendedProxySettings = true;
-		upstreams.nixllm_sticky = {
+		upstreams.nixllm_double = {
 			extraConfig = "ip_hash;";
 			servers = {
-				"127.0.0.1:${stickyPortA}" = {};
-				"127.0.0.1:${stickyPortB}" = {};
+				"127.0.0.1:${doublePortA}" = {};
+				"127.0.0.1:${doublePortB}" = {};
 			};
 		};
-		virtualHosts."nixllm-sticky" = {
-			listen = [ { addr = "0.0.0.0"; port = stickyPortInt; } ];
-			locations."/".proxyPass = "http://nixllm_sticky";
+		virtualHosts."nixllm-double" = {
+			listen = [ { addr = "0.0.0.0"; port = doublePortInt; } ];
+			locations."/".proxyPass = "http://nixllm_double";
 			extraConfig = ''
-				access_log /var/log/nginx/nixllm-sticky.log combined_upstream;
+				access_log /var/log/nginx/nixllm-double.log combined_upstream;
 			'';
 		};
 		appendHttpConfig = ''
