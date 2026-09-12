@@ -30,6 +30,88 @@ let
 		exec ${pkgs.rocmPackages.rocm-smi}/bin/rocm-smi "$@"
 	'';
 
+	# Same per-GPU data 'nixllm gpu-monitor' displays (temp/fan/power/util/vram),
+	# gathered the same way (rocm-smi --json + sysfs), but as one JSON document
+	# instead of a live TUI. Backs the :9999 HTTP endpoint below.
+	gpuMonitorJson = pkgs.writeShellScript "nixllm-gpu-monitor-json" ''
+		set -euo pipefail
+		export PATH=${lib.makeBinPath [ pkgs.jq pkgs.gnugrep pkgs.gnused pkgs.coreutils rocmSmiWrapped ]}
+
+		j="$(rocm-smi --showtemp --showpower --showuse --showbus --json 2>/dev/null || echo '{}')"
+
+		for d in /sys/class/drm/card*/device; do
+			[ -r "$d/uevent" ] || continue
+			grep -q '^DRIVER=amdgpu$' "$d/uevent" || continue
+			cn="$(basename "$(dirname "$d")")"
+			pci="$(sed -n 's/^PCI_SLOT_NAME=//p' "$d/uevent")"
+			hw="-"
+			for h in "$d"/hwmon/hwmon*; do
+				[ -r "$h/name" ] && [ "$(cat "$h/name")" = "amdgpu" ] && { hw="$h"; break; }
+			done
+
+			key="$(printf '%s' "$j" | jq -r --arg p "$pci" '
+			  to_entries[] | select((.value["PCI Bus"] // "" | ascii_downcase) == ($p | ascii_downcase)) | .key' 2>/dev/null | head -n1 || true)"
+			[ -n "$key" ] || key="$cn"
+
+			rpm="null"
+			if [ "$hw" != "-" ] && [ -r "$hw/fan1_input" ]; then
+				rv="$(cat "$hw/fan1_input" 2>/dev/null || true)"
+				case "$rv" in ""|*[!0-9]*) ;; *) rpm="$rv" ;; esac
+			fi
+			fanpct="null"
+			if [ "$hw" != "-" ] && [ -r "$hw/pwm1" ]; then
+				p="$(cat "$hw/pwm1" 2>/dev/null || true)"
+				case "$p" in ""|*[!0-9]*) ;; *) fanpct="$(( p * 100 / 255 ))" ;; esac
+			fi
+
+			vram_used="null"
+			vram_total="null"
+			if [ -r "$d/mem_info_vram_used" ] && [ -r "$d/mem_info_vram_total" ]; then
+				vu="$(cat "$d/mem_info_vram_used" 2>/dev/null || true)"
+				vt="$(cat "$d/mem_info_vram_total" 2>/dev/null || true)"
+				case "$vu" in ""|*[!0-9]*) ;; *) vram_used="$vu" ;; esac
+				case "$vt" in ""|*[!0-9]*) ;; *) vram_total="$vt" ;; esac
+			fi
+
+			jq -cn \
+				--argjson data "$j" \
+				--arg key "$key" \
+				--arg card "$cn" \
+				--arg pci "$pci" \
+				--argjson fan_rpm "$rpm" \
+				--argjson fan_pct "$fanpct" \
+				--argjson vram_used_bytes "$vram_used" \
+				--argjson vram_total_bytes "$vram_total" \
+				'($data[$key] // {}) as $c |
+				 {
+				   card: $card,
+				   pci: $pci,
+				   temp_edge_c: ($c["Temperature (Sensor edge) (C)"] // null),
+				   temp_junction_c: ($c["Temperature (Sensor junction) (C)"] // null),
+				   temp_memory_c: ($c["Temperature (Sensor memory) (C)"] // null),
+				   power_w: ($c["Average Graphics Package Power (W)"] // null),
+				   util_pct: ($c["GPU use (%)"] // null),
+				   fan_rpm: $fan_rpm,
+				   fan_pct: $fan_pct,
+				   vram_used_bytes: $vram_used_bytes,
+				   vram_total_bytes: $vram_total_bytes
+				 }'
+		done | jq -s '{generated_at: (now | todate), gpus: .}'
+	'';
+
+	# Minimal HTTP/1.1 responder: drain the request, ignore it, return the
+	# JSON above. Run per-connection under socat (see systemd.services.nixllm-gpu-api).
+	gpuMonitorHttp = pkgs.writeShellScript "nixllm-gpu-monitor-http" ''
+		set -euo pipefail
+		while IFS= read -r -t 5 line; do
+			line="''${line%$'\r'}"
+			[ -z "$line" ] && break
+		done
+		body="$(${gpuMonitorJson})"
+		len=''${#body}
+		printf 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s' "$len" "$body"
+	'';
+
 	# Derivation defaults. Each is overridable by a line in ${configF}.
 	defHost      = "0.0.0.0";
 	defPort      = "8080";
@@ -1219,7 +1301,7 @@ in
 	# nixllm double exposes each GPU instance directly (doublePortAInt/B) for
 	# manual per-session routing, plus an nginx ip_hash proxy on doublePortInt
 	# for automatic client-IP-based sticky routing if you want it instead.
-	networking.firewall.allowedTCPPorts = [ defPortInt doublePortInt doublePortAInt doublePortBInt ];
+	networking.firewall.allowedTCPPorts = [ defPortInt doublePortInt doublePortAInt doublePortBInt 9999 ];
 
 	# State dir is group-writable by wheel so 'nixllm load/backend/pull' need no sudo.
 	systemd.tmpfiles.rules = [
@@ -1337,6 +1419,21 @@ in
 		'';
 	};
 	systemd.services.nginx.wantedBy = lib.mkForce [ ];
+
+	# JSON HTTP endpoint mirroring 'nixllm gpu-monitor' - GET any path on :9999
+	# returns the current per-GPU temp/fan/power/util/vram as JSON.
+	systemd.services.nixllm-gpu-api = {
+		description = "JSON HTTP endpoint for nixllm gpu-monitor data";
+		wantedBy = [ "multi-user.target" ];
+		serviceConfig = {
+			ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:9999,fork,reuseaddr,bind=0.0.0.0 EXEC:${gpuMonitorHttp}";
+			Restart = "on-failure";
+			RestartSec = 2;
+			User = "llm";
+			Group = "llm";
+			SupplementaryGroups = [ "video" "render" ];
+		};
+	};
 
 	# Started on demand by 'nixllm start' - deliberately not in multi-user.target.
 	systemd.services.nixllm = {
