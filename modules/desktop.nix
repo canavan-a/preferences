@@ -138,6 +138,30 @@ in
 						options.baseURL = "http://192.168.2.149:8080/v1";
 						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Local Qwen (IP)"; };
 					};
+					provider."home-nixllm-a" = {
+						npm = "@ai-sdk/openai-compatible";
+						name = "nixllm (double A / GPU 0)";
+						options.baseURL = "http://nixllm:8091/v1";
+						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Local Qwen (GPU A)"; };
+					};
+					provider."home-nixllm-b" = {
+						npm = "@ai-sdk/openai-compatible";
+						name = "nixllm (double B / GPU 1)";
+						options.baseURL = "http://nixllm:8092/v1";
+						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Local Qwen (GPU B)"; };
+					};
+					provider."home-nixllm-ip-a" = {
+						npm = "@ai-sdk/openai-compatible";
+						name = "nixllm (double A / GPU 0, IP)";
+						options.baseURL = "http://192.168.2.149:8091/v1";
+						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Local Qwen (IP A)"; };
+					};
+					provider."home-nixllm-ip-b" = {
+						npm = "@ai-sdk/openai-compatible";
+						name = "nixllm (double B / GPU 1, IP)";
+						options.baseURL = "http://192.168.2.149:8092/v1";
+						models."Qwen3.8-27B-Q4_K_M.gguf" = { name = "Local Qwen (IP B)"; };
+					};
 				};
 			};
 		};
