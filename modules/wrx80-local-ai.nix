@@ -1081,7 +1081,11 @@ in
 				access_log /var/log/nginx/nixllm-double.log combined_upstream;
 			'';
 		};
-		appendHttpConfig = ''
+		# appendHttpConfig is emitted after virtualHosts in the generated
+		# nginx.conf, so a log_format there is defined too late for the
+		# access_log directive that references it - commonHttpConfig is
+		# emitted before virtualHosts instead.
+		commonHttpConfig = ''
 			log_format combined_upstream '$remote_addr - $remote_user [$time_local] '
 				'"$request" $status $body_bytes_sent "$http_referer" '
 				'"$http_user_agent" -> $upstream_addr';
