@@ -66,13 +66,20 @@ let
 			. "${configF}"
 		fi
 
+		DEVICE_ARGS=""
 		${if gpuIndex != null then ''
-		export ROCR_VISIBLE_DEVICES="${toString gpuIndex}"
-		export HIP_VISIBLE_DEVICES="${toString gpuIndex}"
+		# --device/--split-mode is backend-agnostic (unlike ROCR/HIP_VISIBLE_DEVICES,
+		# which only the ROCm backend honours - the Vulkan backend ignores them
+		# and silently layer-splits across every visible GPU instead of pinning).
+		case "$NIXLLM_BACKEND" in
+			rocm)   DEVICE_ARGS="--device ROCm${toString gpuIndex} --split-mode none" ;;
+			vulkan) DEVICE_ARGS="--device Vulkan${toString gpuIndex} --split-mode none" ;;
+		esac
 		'' else ''
 		# layer-split order across GPUs; "nixllm swap" flips this so the
 		# other card is enumerated first (gets more/fewer layers as needed).
-		if [ -n "$NIXLLM_GPU_ORDER" ]; then
+		# ROCm-only: the Vulkan backend doesn't read these env vars.
+		if [ -n "$NIXLLM_GPU_ORDER" ] && [ "$NIXLLM_BACKEND" = "rocm" ]; then
 			export ROCR_VISIBLE_DEVICES="$NIXLLM_GPU_ORDER"
 			export HIP_VISIBLE_DEVICES="$NIXLLM_GPU_ORDER"
 		fi
@@ -140,6 +147,7 @@ let
 			--ctx-size "$NIXLLM_CTX" \
 			--n-gpu-layers "$NIXLLM_NGL" \
 			--metrics \
+			$DEVICE_ARGS \
 			$FA_ARGS \
 			$MMPROJ_ARGS \
 			$APIKEY_ARGS \
