@@ -147,7 +147,7 @@ let
 				fi
 
 				entry="$(jq -cn --argjson gpu "$gpu" --arg tps "$tps" \
-					'{gpu_temp_c: ($gpu.temp_edge_c // null), gpu_util_pct: ($gpu.util_pct // null), tokens_per_sec: ($tps | tonumber)}')"
+					'{gpu_temp_c: ($gpu.temp_edge_c // null), gpu_temp_edge_c: ($gpu.temp_edge_c // null), gpu_temp_junction_c: ($gpu.temp_junction_c // null), gpu_temp_memory_c: ($gpu.temp_memory_c // null), gpu_util_pct: ($gpu.util_pct // null), tokens_per_sec: ($tps | tonumber)}')"
 				out="$(printf '%s' "$out" | jq -c --arg name "$name" --argjson entry "$entry" '. + {($name): $entry}')"
 			done < "${badgerStationMapF}"
 		fi
