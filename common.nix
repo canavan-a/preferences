@@ -147,6 +147,11 @@ nixpv() {
 nixclean() {
   sudo nix-collect-garbage --delete-older-than 20d
 }
+nixclean-boot() {
+  sudo nix-env --delete-generations +5 --profile /nix/var/nix/profiles/system
+  sudo nix-collect-garbage
+  sudo /run/current-system/bin/switch-to-configuration boot
+}
 nixhelp() {
   cat <<'EOF'
 nixrb <host>    Rebuild and switch to the flake config for <host>.
@@ -154,6 +159,7 @@ nixsync         Pull the latest /etc/nixos config from origin main.
 nixdiff [n]     Diff closures between system generations (n back, default 0) and n+1 back.
 nixpv <host>    Build <host>'s config without switching and diff against the running system.
 nixclean        Garbage-collect generations older than 20 days.
+nixclean-boot   Keep only the last 5 system generations and free /boot space.
 nixhelp         Show this list of custom nix commands.
 EOF
 }

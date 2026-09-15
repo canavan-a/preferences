@@ -13,6 +13,15 @@ let
 	apiKeyF      = "${stateDir}/apikey";
 	doubleModelF = "${stateDir}/double-model";
 
+	# Super Badger Station Standard API adapter: replaces the old plain GPU
+	# JSON dump on :9999 with one endpoint that fronts both the GPU data and
+	# each running llama-server's /metrics, speaking the spec super-badger's
+	# server polls: {"<station>": {"<key>": <num>}}.
+	badgerStationMapF = "${stateDir}/badger-stations";
+	badgerApiKeyF     = "${stateDir}/badger-apikey";
+	badgerPort        = "9999";
+	badgerPortInt     = 9999;
+
 	# nixllm double: two full model copies, one pinned per GPU, fronted by an
 	# nginx ip_hash proxy for session-sticky routing. Backends are
 	# localhost-only; only doublePort is exposed.
@@ -99,15 +108,73 @@ let
 		done | jq -s '{generated_at: (now | todate), gpus: .}'
 	'';
 
-	# Minimal HTTP/1.1 responder: drain the request, ignore it, return the
-	# JSON above. Run per-connection under socat (see systemd.services.nixllm-gpu-api).
-	gpuMonitorHttp = pkgs.writeShellScript "nixllm-gpu-monitor-http" ''
+	# Super Badger Station Standard API body: {"<station>": {"gpu_temp_c":..,
+	# "gpu_util_pct":.., "tokens_per_sec":..}, ...}. Stations are read from
+	# ${badgerStationMapF}, one "NAME=PORT[:GPUINDEX]" per line (managed by
+	# 'nixllm badger map ...'); GPUINDEX picks which entry of the GPU JSON's
+	# "gpus" array to attribute to that station (defaults to gpus[0] on a
+	# single-GPU box, or when the station's own GPU isn't known).
+	badgerJson = pkgs.writeShellScript "nixllm-badger-json" ''
 		set -euo pipefail
+		export PATH=${lib.makeBinPath [ pkgs.jq pkgs.gnugrep pkgs.gnused pkgs.coreutils pkgs.curl pkgs.gawk ]}
+
+		gpus_json="$(${gpuMonitorJson})"
+		mauth=()
+		[ -s "${apiKeyF}" ] && mauth=(-H "Authorization: Bearer $(cat "${apiKeyF}")")
+
+		out="{}"
+		if [ -s "${badgerStationMapF}" ]; then
+			while IFS= read -r line; do
+				[ -z "$line" ] && continue
+				case "$line" in \#*) continue ;; esac
+				name="''${line%%=*}"
+				rest="''${line#*=}"
+				port="''${rest%%:*}"
+				gidx=""
+				case "$rest" in *:*) gidx="''${rest##*:}" ;; esac
+
+				tps="0"
+				m="$(curl -fsS --max-time 2 "''${mauth[@]}" "http://127.0.0.1:$port/metrics" 2>/dev/null || true)"
+				if [ -n "$m" ]; then
+					v="$(printf '%s\n' "$m" | awk '$1=="llamacpp:predicted_tokens_seconds"{print $2}')"
+					[ -n "$v" ] && tps="$v"
+				fi
+
+				if [ -n "$gidx" ]; then
+					gpu="$(printf '%s' "$gpus_json" | jq -c --argjson i "$gidx" '.gpus[$i] // {}')"
+				else
+					gpu="$(printf '%s' "$gpus_json" | jq -c '.gpus[0] // {}')"
+				fi
+
+				entry="$(jq -cn --argjson gpu "$gpu" --arg tps "$tps" \
+					'{gpu_temp_c: ($gpu.temp_edge_c // null), gpu_util_pct: ($gpu.util_pct // null), tokens_per_sec: ($tps | tonumber)}')"
+				out="$(printf '%s' "$out" | jq -c --arg name "$name" --argjson entry "$entry" '. + {($name): $entry}')"
+			done < "${badgerStationMapF}"
+		fi
+		printf '%s' "$out"
+	'';
+
+	# Same drain-then-respond pattern as gpuMonitorHttp, but checks an optional
+	# Bearer key (${badgerApiKeyF}) first since this aggregates data across
+	# every configured station rather than exposing one box-wide GPU dump.
+	badgerHttp = pkgs.writeShellScript "nixllm-badger-http" ''
+		set -euo pipefail
+		provided=""
 		while IFS= read -r -t 5 line; do
 			line="''${line%$'\r'}"
 			[ -z "$line" ] && break
+			case "$line" in
+				[Aa]uthorization:*) provided="''${line#*: }"; provided="''${provided%$'\r'}" ;;
+			esac
 		done
-		body="$(${gpuMonitorJson})"
+		if [ -s "${badgerApiKeyF}" ]; then
+			expected="Bearer $(cat "${badgerApiKeyF}")"
+			if [ "$provided" != "$expected" ]; then
+				printf 'HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\nConnection: close\r\n\r\n'
+				exit 0
+			fi
+		fi
+		body="$(${badgerJson})"
 		len=''${#body}
 		printf 'HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: %s\r\nConnection: close\r\n\r\n%s' "$len" "$body"
 	'';
@@ -633,6 +700,75 @@ EOF
 							;;
 						*)
 							echo "nixllm: unknown apikey subcommand '$sub' (show|set <k>|generate|clear)" >&2
+							exit 1
+							;;
+					esac
+					;;
+				badger)
+					sub="''${1:-map}"
+					[ "$#" -gt 0 ] && shift || true
+					STATION_MAP_F="${badgerStationMapF}"
+					BADGER_KEY_F="${badgerApiKeyF}"
+					case "$sub" in
+						map)
+							msub="''${1:-show}"
+							case "$msub" in
+								show|"")
+									if [ -s "$STATION_MAP_F" ]; then
+										cat "$STATION_MAP_F"
+									else
+										echo "badger: no stations mapped"
+									fi
+									;;
+								set)
+									[ "$#" -eq 3 ] || { echo "usage: nixllm badger map set <name> <port>[:<gpu-index>]" >&2; exit 1; }
+									name="$2"; spec="$3"
+									touch "$STATION_MAP_F"
+									sed -i "/^$name=/d" "$STATION_MAP_F"
+									printf '%s=%s\n' "$name" "$spec" >> "$STATION_MAP_F"
+									echo "nixllm: badger station '$name' -> $spec"
+									;;
+								clear|rm)
+									[ "$#" -eq 2 ] || { echo "usage: nixllm badger map clear <name>" >&2; exit 1; }
+									[ -f "$STATION_MAP_F" ] && sed -i "/^$2=/d" "$STATION_MAP_F"
+									echo "nixllm: badger station '$2' removed"
+									;;
+								*)
+									echo "nixllm: unknown badger map subcommand '$msub' (show|set <name> <port>[:<gpu-index>]|clear <name>)" >&2
+									exit 1
+									;;
+							esac
+							;;
+						apikey)
+							asub="''${1:-show}"
+							case "$asub" in
+								show|"")
+									if [ -s "$BADGER_KEY_F" ]; then cat "$BADGER_KEY_F"; echo; else echo "badger apikey: (none)"; fi
+									;;
+								set)
+									[ "$#" -eq 2 ] || { echo "usage: nixllm badger apikey set <key>" >&2; exit 1; }
+									( umask 077; printf '%s' "$2" > "$BADGER_KEY_F" )
+									chgrp wheel "$BADGER_KEY_F" && chmod 640 "$BADGER_KEY_F"
+									echo "nixllm: badger apikey set"
+									;;
+								generate|gen)
+									k="$(head -c 32 /dev/urandom | base64 | tr -dc 'A-Za-z0-9' | cut -c1-40)"
+									( umask 077; printf '%s' "$k" > "$BADGER_KEY_F" )
+									chgrp wheel "$BADGER_KEY_F" && chmod 640 "$BADGER_KEY_F"
+									echo "$k"
+									;;
+								clear|none|rm)
+									rm -f "$BADGER_KEY_F"
+									echo "nixllm: badger apikey cleared"
+									;;
+								*)
+									echo "nixllm: unknown badger apikey subcommand '$asub' (show|set <k>|generate|clear)" >&2
+									exit 1
+									;;
+							esac
+							;;
+						*)
+							echo "nixllm: unknown badger subcommand '$sub' (map|apikey)" >&2
 							exit 1
 							;;
 					esac
@@ -1201,6 +1337,9 @@ nixllm - manage the llama.cpp server on this host
   nixllm preset <code|think|clear> apply a sampling + reasoning bundle
   nixllm mmproj [add <p>|clear] attach/detach a vision projector (mmproj gguf)
   nixllm apikey [show|set <k>|generate|clear]  require Bearer auth on the HTTP endpoint
+  nixllm badger map [show|set <name> <port>[:<gpu-index>]|clear <name>]
+                                map a station name to a llama-server port for :${badgerPort}
+  nixllm badger apikey [show|set <k>|generate|clear]  require Bearer auth on :${badgerPort}
   nixllm pull <hf-url>         download a gguf into $MODELS_DIR
   nixllm pull <repo> <file>    download huggingface.co/<repo>/resolve/main/<file>
   nixllm models                list downloaded models
@@ -1264,6 +1403,15 @@ EOF
 						fi ;;
 					apikey)
 						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "show set generate clear" -- "$cur") ;;
+					badger)
+						if [ "$cword" -eq 2 ]; then
+							mapfile -t COMPREPLY < <(compgen -W "map apikey" -- "$cur")
+						elif [ "$cword" -eq 3 ]; then
+							case "$prev" in
+								map)    mapfile -t COMPREPLY < <(compgen -W "show set clear" -- "$cur") ;;
+								apikey) mapfile -t COMPREPLY < <(compgen -W "show set generate clear" -- "$cur") ;;
+							esac
+						fi ;;
 					mmproj)
 						if [ "$cword" -eq 2 ]; then
 							mapfile -t COMPREPLY < <(compgen -W "show add clear help" -- "$cur")
@@ -1301,13 +1449,30 @@ in
 	# nixllm double exposes each GPU instance directly (doublePortAInt/B) for
 	# manual per-session routing, plus an nginx ip_hash proxy on doublePortInt
 	# for automatic client-IP-based sticky routing if you want it instead.
-	networking.firewall.allowedTCPPorts = [ defPortInt doublePortInt doublePortAInt doublePortBInt 9999 ];
+	networking.firewall.allowedTCPPorts = [ defPortInt doublePortInt doublePortAInt doublePortBInt badgerPortInt ];
 
 	# State dir is group-writable by wheel so 'nixllm load/backend/pull' need no sudo.
 	systemd.tmpfiles.rules = [
 		"d ${stateDir} 0775 llm wheel -"
 		"d ${modelsDir} 0775 llm wheel -"
 	];
+
+	# Default Super Badger station map: gpu-a is GPU 0 (nixllm double's port
+	# ${doublePortA}), gpu-b is GPU 1 (port ${doublePortB}) — matches
+	# nixllmDoubleLaunchA/B's gpuIndex pinning above. Only seeded if the file
+	# doesn't exist yet, so 'nixllm badger map set ...' edits made on the box
+	# are never overwritten by a rebuild.
+	system.activationScripts.nixllmBadgerStations = ''
+		if [ ! -e ${badgerStationMapF} ]; then
+			mkdir -p ${stateDir}
+			cat > ${badgerStationMapF} <<-EOF
+			gpu-a=${doublePortA}:0
+			gpu-b=${doublePortB}:1
+			EOF
+			chown llm:llm ${badgerStationMapF}
+			chmod 664 ${badgerStationMapF}
+		fi
+	'';
 
 	# nixllm double: one llama-server per GPU (ROCR/HIP_VISIBLE_DEVICES pinned),
 	# same model, fronted by nginx ip_hash for session-sticky routing. Started
@@ -1420,13 +1585,16 @@ in
 	};
 	systemd.services.nginx.wantedBy = lib.mkForce [ ];
 
-	# JSON HTTP endpoint mirroring 'nixllm gpu-monitor' - GET any path on :9999
-	# returns the current per-GPU temp/fan/power/util/vram as JSON.
-	systemd.services.nixllm-gpu-api = {
-		description = "JSON HTTP endpoint for nixllm gpu-monitor data";
+	# Super Badger Station Standard API adapter - replaces the old plain GPU
+	# JSON dump on :9999. GET any path returns {"<station>": {"gpu_temp_c":..,
+	# "gpu_util_pct":.., "tokens_per_sec":..}} for every station in
+	# ${badgerStationMapF} (see 'nixllm badger map'). Optional Bearer auth via
+	# ${badgerApiKeyF} ('nixllm badger apikey').
+	systemd.services.nixllm-badger-api = {
+		description = "Super Badger Station Standard API adapter";
 		wantedBy = [ "multi-user.target" ];
 		serviceConfig = {
-			ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:9999,fork,reuseaddr,bind=0.0.0.0 EXEC:${gpuMonitorHttp}";
+			ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:${badgerPort},fork,reuseaddr,bind=0.0.0.0 EXEC:${badgerHttp}";
 			Restart = "on-failure";
 			RestartSec = 2;
 			User = "llm";
