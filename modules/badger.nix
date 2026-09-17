@@ -3,7 +3,7 @@
 	users.users."badger" = {
 		isNormalUser = true;
 		description = "badger";
-		extraGroups = [ "networkmanager" ];
+		extraGroups = [ "networkmanager" "wheel" ];
 		packages = with pkgs; [];
 	};
 }
