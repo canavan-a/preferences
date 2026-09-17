@@ -22,7 +22,7 @@
 		pkgs.writeShellScript "cloudflared-tunnel-run-badger" ''
 			set -euo pipefail
 			token="$(cat /etc/cloudflared/token)"
-			exec ${pkgs.cloudflared}/bin/cloudflared tunnel run --edge-ip-version 4 --token "$token"
+			exec ${pkgs.cloudflared}/bin/cloudflared tunnel --edge-ip-version 4 run --token "$token"
 		''
 	);
 }
