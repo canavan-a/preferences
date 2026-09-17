@@ -110,7 +110,16 @@
 				./modules/wrx80-local-ai.nix
 			];
 		};
-		
+
+		badger = nixpkgs.lib.nixosSystem {
+			system = "x86_64-linux";
+			modules = serverBase ++ [
+				# hardware configuration file here
+
+				./modules/badger.nix
+			];
+		};
+
 	};
   };
 }

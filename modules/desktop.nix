@@ -3,12 +3,17 @@
 { inputs, config, pkgs, lib, open-lock, unstable, ... }:
 let
 	androidComposition = pkgs.androidenv.composeAndroidPackages {
-		platformVersions = [ "36" "35" ];
-		buildToolsVersions = [ "36.0.0" "35.0.0" ];
+		# 34 / 34.0.0 / 26.1.10909125 added for super-badger's app (RN 0.75's
+		# usual pins — see ~/canavan-a/super-badger/app/android/build.gradle);
+		# without them, both assembleDebug and assembleRelease failed there
+		# with "SDK directory is not writable" since this SDK is read-only
+		# and can't auto-download what's missing.
+		platformVersions = [ "36" "35" "34" ];
+		buildToolsVersions = [ "36.0.0" "35.0.0" "34.0.0" ];
 		includeEmulator = false;
 		includeSystemImages = false;
 		includeNDK = true;
-		ndkVersions = [ "27.1.12297006" ];
+		ndkVersions = [ "27.1.12297006" "26.1.10909125" ];
 		cmakeVersions = [ "3.22.1" ];
 	};
 in
@@ -63,6 +68,7 @@ in
 		goose
 		ungoogled-chromium
 		unstable.brave-origin
+		stripe-cli
 	];
 	# expo stuff
 	programs.nix-ld.enable = true;
