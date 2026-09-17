@@ -115,6 +115,7 @@
 			system = "x86_64-linux";
 			modules = serverBase ++ [
 				./hardware-configuration-badger.nix
+				./cloudflare/cf.nix
 
 				./modules/badger.nix
 			];
