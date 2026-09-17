@@ -6,4 +6,8 @@
 		extraGroups = [ "networkmanager" "wheel" ];
 		packages = with pkgs; [];
 	};
+
+	services.superbadger = {
+		enable = true;
+	};
 }

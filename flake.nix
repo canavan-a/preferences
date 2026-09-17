@@ -23,10 +23,11 @@
 		url = "github:canavan-a/horus-33";
 		inputs.nixpkgs.follows = "nixpkgs";
 	};
+	super-badger.url = "github:canavan-a/super-badger";
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, ... } @ inputs:
   	let 
   	unstable = import nixpkgs-unstable {
   		system = "x86_64-linux";
@@ -118,6 +119,7 @@
 				./cloudflare/cf.nix
 
 				./modules/badger.nix
+				super-badger.nixosModules.default
 			];
 		};
 

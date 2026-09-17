@@ -992,11 +992,14 @@ EOF4
 								echo "nixllm:   gpu-a -> http://0.0.0.0:$DOUBLE_PORT_A  (point one client here)"
 								echo "nixllm:   gpu-b -> http://0.0.0.0:$DOUBLE_PORT_B  (point the other client here)"
 								echo "nixllm:   auto ip_hash proxy also available at http://0.0.0.0:$DOUBLE_PORT"
+								echo "nixllm:   runs as systemd services - closing this terminal will not stop it"
+								echo "nixllm:   run 'nixllm double watch' for a live dashboard, 'nixllm double stop' to stop"
 							else
 								echo "nixllm: double started but a /health check did not come up - check 'nixllm double status'" >&2
 								exit 1
 							fi
-
+							;;
+						watch)
 							command -v rocm-smi >/dev/null || { echo "nixllm: rocm-smi unavailable" >&2; exit 1; }
 							GPUS="$(list_amdgpu_gpus)"
 							[ -n "$GPUS" ] || { echo "nixllm: no amdgpu cards found" >&2; exit 1; }
@@ -1007,8 +1010,6 @@ EOF4
 
 							cleanup() {
 								printf '\033[?25h\033[?1049l'
-								echo "nixllm: stopping double ..."
-								sudo systemctl stop nixllm-double-a nixllm-double-b nginx 2>/dev/null || true
 								exit 0
 							}
 							printf '\033[?1049h\033[?25l'
@@ -1016,7 +1017,7 @@ EOF4
 							while :; do
 								j="$(rocm-smi --showtemp --showpower --showuse --showbus --json 2>/dev/null || true)"
 								printf '\033[H\033[2J'
-								echo "nixllm double   $(date '+%H:%M:%S')   (Ctrl-C to stop and exit)"
+								echo "nixllm double   $(date '+%H:%M:%S')   (Ctrl-C to exit - double keeps running)"
 								echo "model: $(cat "$DOUBLE_MODEL_F" 2>/dev/null || echo -)"
 								i=0
 								while read -r cn pci hw dev; do
@@ -1076,7 +1077,7 @@ EOF4
 							done
 							;;
 						*)
-							echo "nixllm: unknown double subcommand '$sub' (start|stop|status)" >&2
+							echo "nixllm: unknown double subcommand '$sub' (start|stop|status|watch)" >&2
 							exit 1
 							;;
 					esac
@@ -1318,11 +1319,13 @@ nixllm - manage the llama.cpp server on this host
   nixllm gpu-monitor           live GPU temp / fan / power / util / vram (Ctrl-C to exit)
   nixllm tps                   live token throughput in/out, active/queued reqs, kv use
   nixllm headroom              VRAM budget + largest context that fits
-  nixllm double [start]        TUI: pick a model, run one copy per GPU
+  nixllm double [start]        TUI: pick a model, run one copy per GPU, as systemd services
                                 (stops the single-instance nixllm service)
                                 gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}   auto ip_hash proxy: port ${doublePort}
+                                runs in the background - closing the terminal does not stop it
   nixllm double stop           stop both double instances + nginx
   nixllm double status         double service state + per-instance health
+  nixllm double watch          live GPU/throughput dashboard (Ctrl-C to exit, double keeps running)
   nixllm single [start]        TUI: pick a model and ONE GPU, leaves the other GPU untouched
                                 runs on the main port (${defPort}), no nginx routing
   nixllm single stop [a|b]     stop the single instance (infers gpu if only one is running)
@@ -1394,7 +1397,7 @@ EOF
 					preset)      mapfile -t COMPREPLY < <(compgen -W "code think clear" -- "$cur") ;;
 					parallel|p)  mapfile -t COMPREPLY < <(compgen -W "clear auto" -- "$cur") ;;
 					double)
-						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "start stop status" -- "$cur") ;;
+						[ "$cword" -eq 2 ] && mapfile -t COMPREPLY < <(compgen -W "start stop status watch" -- "$cur") ;;
 					single)
 						if [ "$cword" -eq 2 ]; then
 							mapfile -t COMPREPLY < <(compgen -W "start stop status" -- "$cur")
