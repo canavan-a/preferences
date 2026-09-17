@@ -114,7 +114,7 @@
 		badger = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
 			modules = serverBase ++ [
-				# hardware configuration file here
+				./hardware-configuration-badger.nix
 
 				./modules/badger.nix
 			];
