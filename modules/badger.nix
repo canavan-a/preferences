@@ -9,6 +9,7 @@
 
 	services.superbadger = {
 		enable = true;
+		mullvad.enable = true;
 	};
 
 	# This host's Wi-Fi network hands out IPv6 ULA addresses with no default
