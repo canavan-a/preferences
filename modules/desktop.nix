@@ -208,6 +208,10 @@ in
 
 	home-manager.users.nixos = {
 		stylix.enableReleaseChecks = false;
+		programs.neovim.enable = true;
+		programs.neovim.withRuby = true;
+		programs.neovim.withPython3 = true;
+		stylix.targets.neovim.enable = true;
 		programs.fuzzel.enable = true;
 		programs.swayimg.enable = true;
 		programs.mpv.enable = true;
