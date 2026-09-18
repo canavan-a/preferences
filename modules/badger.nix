@@ -12,6 +12,12 @@
 		mullvad.enable = true;
 	};
 
+	# opencode-serve (from super-badger's module) has no User set, so it runs
+	# as root and reads /root/.config/opencode/opencode.json - not the
+	# home-manager-managed config below, which lives under badger's home.
+	# Run it as badger so it actually picks up these providers.
+	systemd.services.opencode-serve.serviceConfig.User = "badger";
+
 	home-manager.users.badger = {
 		home.stateVersion = "25.11";
 		programs.opencode = {
