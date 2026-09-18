@@ -13,6 +13,7 @@
 	};
 
 	home-manager.users.badger = {
+		home.stateVersion = "25.11";
 		programs.opencode = {
 			enable = true;
 			settings = {
