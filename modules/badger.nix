@@ -10,7 +10,12 @@
 	services.superbadger = {
 		enable = true;
 		mullvad.enable = true;
+		web.enable = true;
 	};
+
+	# services.superbadger.web's static web-client port (default listenAddr
+	# ":8081" — see super-badger's module.nix).
+	networking.firewall.allowedTCPPorts = [ 8081 ];
 
 	# opencode-serve (from super-badger's module) has no User set, so it runs
 	# as root and reads /root/.config/opencode/opencode.json - not the
