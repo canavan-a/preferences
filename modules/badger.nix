@@ -90,6 +90,10 @@
 	# connected. mullvad-exclude uses Mullvad's split-tunneling support
 	# (cgroup net_cls) to route cloudflared's traffic outside the Mullvad
 	# tunnel, so both can run at once.
+	#
+	# --protocol http2 uses TCP instead of QUIC (UDP 7844), which was being
+	# dropped during firewall/Mullvad transitions at boot ("sendmsg: operation
+	# not permitted"); TCP survives those and reconnects cleanly.
 	systemd.services.cloudflared-tunnel = {
 		after = [ "mullvad-daemon.service" ];
 		wants = [ "mullvad-daemon.service" ];
@@ -97,7 +101,7 @@
 			pkgs.writeShellScript "cloudflared-tunnel-run-badger" ''
 				set -euo pipefail
 				token="$(cat /etc/cloudflared/token)"
-				exec ${pkgs.mullvad}/bin/mullvad-exclude ${pkgs.cloudflared}/bin/cloudflared tunnel --edge-ip-version 4 run --token "$token"
+				exec ${pkgs.mullvad}/bin/mullvad-exclude ${pkgs.cloudflared}/bin/cloudflared tunnel --edge-ip-version 4 --protocol http2 run --token "$token"
 			''
 		);
 	};
