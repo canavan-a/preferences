@@ -69,7 +69,15 @@ in
 		ungoogled-chromium
 		unstable.brave-origin
 		stripe-cli
-	];
+	]
+	# The super-badger terminal client (`superbadger`). Guarded so a flake.lock
+	# still pinned to a super-badger rev from before the TUI existed evaluates
+	# without it instead of failing the whole rebuild; it shows up after
+	# `nix flake update super-badger`. (It go-builds itself on first run and
+	# caches the binary under ~/.cache/superbadger; its settings live in
+	# ~/.config/superbadger and are never touched by updates.)
+	++ lib.optional (inputs.super-badger ? packages)
+		inputs.super-badger.packages.x86_64-linux.default;
 	# expo stuff
 	programs.nix-ld.enable = true;
 	programs.nix-ld.libraries = with pkgs; [
