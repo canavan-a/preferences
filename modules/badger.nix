@@ -141,6 +141,7 @@
 		description = "Pangolin newt tunneling client";
 		after = [ "network-online.target" ];
 		wants = [ "network-online.target" ];
+		wantedBy = [ "multi-user.target" ];
 		serviceConfig = {
 			ExecStart = "${pkgs.fosrl-newt}/bin/newt";
 			EnvironmentFile = "/etc/pangolin/newt.env";
