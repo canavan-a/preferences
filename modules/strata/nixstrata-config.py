@@ -4,7 +4,11 @@ Runs before every start (ExecStartPre), so `nixstrata context` / `gpus` only nee
 ones upstream's setup.py builds for a native pack (setup.py, "the start script" step), minus the parts that only
 apply to other machines (CUDA, WSL, rotational disks, vision).
 
-usage: nixstrata-config.py <state-dir> <catalog.json> <strata-package>
+usage: nixstrata-config.py <state-dir> <catalog.json> <strata-package> [<instance> <gpu> <port> <arena-dir>]
+
+Without an instance: the single server (strata.json, port 8080, the GPUs from `nixstrata gpus`).
+With one (nixstrata double): strata-<instance>.json pinned to <gpu> on <port>, its expert arena in
+<arena-dir>/<model>.arena - one MAP_SHARED file both instances use, so the ~50 GB of experts sit in RAM once.
 """
 import json
 import os
@@ -12,6 +16,10 @@ import sys
 from pathlib import Path
 
 state, catalog_f, pkg = Path(sys.argv[1]), Path(sys.argv[2]), Path(sys.argv[3])
+instance = sys.argv[4] if len(sys.argv) > 4 else None
+if instance is not None:
+    inst_gpu, inst_port, arena_dir = int(sys.argv[5]), int(sys.argv[6]), Path(sys.argv[7])
+suffix = f"-{instance}" if instance else ""
 share = pkg / "share" / "strata"
 sys.path.insert(0, str(share / "tools"))
 from gguf_reader import GGUFFile  # noqa: E402  (upstream's reader, the one setup.py uses)
@@ -76,7 +84,10 @@ if not (rt / "experts.bin").exists():
     fail(f"the MTP draft layer is missing ({rt}) - run 'nixstrata use {key}'")
 
 ctx = int(cfg_in.get("STRATA_CTX") or m["context"])
-gpus = [int(g) for g in (cfg_in.get("STRATA_GPUS") or "0,1").split(",") if g.strip() != ""]
+if instance is not None:
+    gpus = [inst_gpu]
+else:
+    gpus = [int(g) for g in (cfg_in.get("STRATA_GPUS") or "0,1").split(",") if g.strip() != ""]
 
 # The PLE table's shard, found by tensor name (shard 1 for the Orca GGUFs, shard 2 for the original model).
 ple = next((s for s in shards if any(t.name == "per_layer_token_embd.weight" for t in GGUFFile(s).tensors)), None)
@@ -94,6 +105,9 @@ kv_ram_gb = ctx * 13 * 1056 / 1e9
 if ctx >= 65536 and total_ram_gb() >= m["ram_gb"] + kv_ram_gb + 1:
     args += ["--kv-resident", "32768"]
 args += m.get("extra_args", [])
+if instance is not None:
+    # one MAP_SHARED copy of the expert arena for both instances (engine: Linux, checked against the pack's hash)
+    args += ["--shared-expert-arena", str(arena_dir / f"{key}.arena")]
 
 out = {
     "exe": str(pkg / "libexec" / "strata" / "strata"),
@@ -101,10 +115,10 @@ out = {
     "cwd": str(state),
     "tokenizer": str(pack / "tokenizer"),
     "model_name": key,
-    "log": str(state / "strata.log"),
+    "log": str(state / f"strata{suffix}.log"),
     "backend": "hip",
     "host": "0.0.0.0",
-    "port": 8080,
+    "port": inst_port if instance is not None else 8080,
     "open_browser": False,
 }
 if len(gpus) > 1:
@@ -130,7 +144,7 @@ if ver is not None and table.exists():
 else:
     print(f"nixstrata: no gfx1100 hipBLASLt table for version {ver}: plain hipBLAS for prompt GEMMs")
 
-tmp = state / "strata.json.tmp"
+tmp = state / f"strata{suffix}.json.tmp"
 tmp.write_text(json.dumps(out, indent=1))
-tmp.replace(state / "strata.json")
-print(f"nixstrata: {key}, context {ctx}, GPUs {gpus}, args: {' '.join(args)}")
+tmp.replace(state / f"strata{suffix}.json")
+print(f"nixstrata{suffix}: {key}, context {ctx}, GPUs {gpus}, port {out['port']}, args: {' '.join(args)}")

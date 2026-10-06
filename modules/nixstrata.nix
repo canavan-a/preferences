@@ -15,9 +15,26 @@ let
 	# models/*.gguf non-recursively, so the shards stay out of them.
 	modelsRoot = "/var/lib/nixllm/models";
 	port       = 8080;
-	# Super Badger station endpoint for Strata (strata/nixstrata-badger.py), up only while nixstrata runs
-	badgerPort    = 9998;
-	badgerStation = "strata";
+	# Super Badger endpoint (strata/nixstrata-badger.py): while a Strata server runs it takes
+	# over nixllm's badger port and station map, so Super Badger keeps one URL and the same
+	# station names (gpu-a, gpu-b, ...) whichever backend serves them.
+	badgerPort       = 9999;
+	badgerStationMap = "/var/lib/nixllm/badger-stations";
+
+	# nixstrata double: one Strata per GPU, the same ports as nixllm double (nginx's ip_hash
+	# proxy on 8090, from wrx80-local-ai.nix, in front of 8091/8092), so clients don't change.
+	# Both engines back their expert arena with one MAP_SHARED file (--shared-expert-arena),
+	# so the ~50 GB of experts sit in RAM once, not twice. It lives on its own tmpfs, not
+	# /dev/shm: logind's RemoveIPC empties a normal user's /dev/shm files at logout.
+	arenaDir = "/run/nixstrata-arena";
+	doubleInstances = {
+		a = { gpu = 0; port = 8091; };
+		b = { gpu = 1; port = 8092; };
+	};
+	nixllmUnits = [
+		"nixllm.service" "nixllm-single-a.service" "nixllm-single-b.service"
+		"nixllm-double-a.service" "nixllm-double-b.service"
+	];
 
 	# Models nixstrata can pull / use / delete. To add one, add an entry.
 	#   files:      every shard, as named in the repo (shard 1 first)
@@ -59,11 +76,49 @@ let
 
 	hipblasltHeader = "${pkgs.rocmPackages.hipblaslt}/include/hipblaslt/hipblaslt-version.h";
 
-	# ExecStartPre: settings -> strata.json (see strata/nixstrata-config.py).
-	writeConfig = pkgs.writeShellScript "nixstrata-write-config" ''
+	# ExecStartPre: settings -> strata.json / strata-<instance>.json (see strata/nixstrata-config.py).
+	writeConfig = instArgs: pkgs.writeShellScript "nixstrata-write-config" ''
 		export NIXSTRATA_HIPBLASLT_HEADER=${hipblasltHeader}
-		exec ${python}/bin/python ${./strata/nixstrata-config.py} ${stateDir} ${catalogJson} ${strata}
+		exec ${python}/bin/python ${./strata/nixstrata-config.py} ${stateDir} ${catalogJson} ${strata} ${instArgs}
 	'';
+
+	# ExecStopPost of a double instance: once neither is running, drop the shared arena so
+	# its ~50 GB of tmpfs go back to the system (nixllm, the single server).
+	arenaCleanup = pkgs.writeShellScript "nixstrata-arena-cleanup" ''
+		for u in ${lib.concatMapStringsSep " " (n: "nixstrata-${n}") (lib.attrNames doubleInstances)}; do
+			if ${pkgs.systemd}/bin/systemctl is-active --quiet "$u"; then exit 0; fi
+		done
+		${pkgs.coreutils}/bin/rm -f ${arenaDir}/*.arena
+	'';
+
+	# Every Strata server unit: the single one on ${toString port} (both GPUs, `nixstrata gpus`)
+	# and the double instances. All of them exclude nixllm and each other ("conflicts" works
+	# both ways) - they want the same GPUs and most of the RAM.
+	mkStrataService = { description, configName, servicePort, instArgs ? "", conflicts, extra ? { } }:
+		lib.recursiveUpdate {
+			inherit description conflicts;
+			wants = [ "nixstrata-badger.service" ];
+			environment.STRATA_GGUF_PY = "${strata.llamaSrc}/gguf-py";
+			serviceConfig = {
+				ExecStartPre = writeConfig instArgs;
+				ExecStart = "${python}/bin/python -m serve.server --engine strata --config ${stateDir}/${configName} --port ${toString servicePort}";
+				WorkingDirectory = share;
+				User = "llm";
+				Group = "llm";
+				SupplementaryGroups = [ "video" "render" ];
+				# the expert arena is pinned (page-locked) RAM
+				LimitMEMLOCK = "infinity";
+				Restart = "on-failure";
+				RestartSec = 5;
+				TimeoutStartSec = "15min";
+				TimeoutStopSec = 30;
+			};
+		} extra;
+
+	# the Strata servers the badger endpoint knows: PORT=UNIT:CONFIG (see strata/nixstrata-badger.py)
+	badgerServers = [ "${toString port}=nixstrata.service:${stateDir}/strata.json" ]
+		++ lib.mapAttrsToList (n: i: "${toString i.port}=nixstrata-${n}.service:${stateDir}/strata-${n}.json")
+			doubleInstances;
 
 	nixstrataCli = pkgs.writeShellApplication {
 		name = "nixstrata";
@@ -75,6 +130,11 @@ let
 			SHARE="${share}"
 			PY="${python}/bin/python"
 			PORT="${toString port}"
+			# every Strata server: "UNIT PORT", the single one first, then nixstrata double's
+			SERVERS="nixstrata $PORT
+			${lib.concatStringsSep "\n" (lib.mapAttrsToList (n: i: "nixstrata-${n} ${toString i.port}") doubleInstances)}"
+			DOUBLE_UNITS="${lib.concatMapStringsSep " " (n: "nixstrata-${n}") (lib.attrNames doubleInstances)}"
+			read -ra DOUBLE_ARR <<< "$DOUBLE_UNITS"
 			API_KEY_F="$STATE/apikey"
 			# the same token file as 'nixllm login', so one login covers both
 			TOKEN_F="''${XDG_CONFIG_HOME:-$HOME/.config}/nixllm/token"
@@ -105,8 +165,18 @@ let
 				fi
 			}
 			cfg_unset() { if [ -f "$CONFIG_F" ]; then sed -i "/^$1=/d" "$CONFIG_F"; fi; }
+			# the Strata servers running now, as "UNIT PORT" lines
+			running() {
+				local u p
+				while read -r u p; do
+					[ -n "$u" ] || continue
+					if systemctl is-active --quiet "$u"; then echo "$u $p"; fi
+				done <<< "$SERVERS"
+			}
+			double_running() { running | grep -q '^nixstrata-'; }
 			restart_hint() {
-				if systemctl is-active --quiet nixstrata; then echo "nixstrata: run 'nixstrata restart' to apply"; fi
+				if double_running; then echo "nixstrata: run 'nixstrata double restart' to apply"
+				elif [ -n "$(running)" ]; then echo "nixstrata: run 'nixstrata restart' to apply"; fi
 			}
 
 			# ---- catalog
@@ -173,17 +243,35 @@ let
 				case "$a" in y|Y|yes) return 0 ;; *) return 1 ;; esac
 			}
 
-			health() { curl -fsS --max-time 2 "http://127.0.0.1:$PORT/health" 2>/dev/null || true; }
+			# health [port]
+			health() { curl -fsS --max-time 2 "http://127.0.0.1:''${1:-$PORT}/health" 2>/dev/null || true; }
+			# wait_health [unit] [port]: loading ~50+ GB of experts into RAM takes minutes
 			wait_health() {
-				# loading ~50+ GB of experts into RAM takes minutes
-				local i
+				local i unit="''${1:-nixstrata}" p="''${2:-$PORT}"
 				for i in $(seq 1 900); do
-					if health | grep -q '"service": *"strata"'; then return 0; fi
-					if ! systemctl is-active --quiet nixstrata; then return 1; fi
-					if [ $(( i % 30 )) = 0 ]; then echo "nixstrata: still loading ($i s) ..."; fi
+					if health "$p" | grep -q '"service": *"strata"'; then return 0; fi
+					if ! systemctl is-active --quiet "$unit"; then return 1; fi
+					if [ $(( i % 30 )) = 0 ]; then echo "nixstrata: $unit still loading ($i s) ..."; fi
 					sleep 1
 				done
 				return 1
+			}
+
+			# nixstrata double: a first (it writes the shared expert arena), b once a is up
+			# (it finds the arena filled), then nginx's sticky proxy on 8090
+			double_start() {
+				local u p
+				[ -n "$(cfg_get STRATA_MODEL "")" ] || die "no model selected - run 'nixstrata use'"
+				# Conflicts= stops nixllm and the single nixstrata for us
+				while read -r u p; do
+					case "$u" in nixstrata-*) ;; *) continue ;; esac
+					echo "nixstrata: starting $u (port $p) ..."
+					sudo systemctl start "$u"
+					wait_health "$u" "$p" || die "$u did not come up - 'nixstrata logs $u'"
+					echo "nixstrata: $u up on :$p"
+				done <<< "$SERVERS"
+				sudo systemctl start nginx
+				echo "nixstrata: double up - sticky proxy http://0.0.0.0:8090, or each instance directly"
 			}
 
 			# ---- pull
@@ -271,7 +359,13 @@ let
 				cp -f "$SHARE/data/draft_vocab.bin" "$STATE/mtp/rt/draft_vocab.bin"
 				cfg_set STRATA_MODEL "$key"
 				echo "nixstrata: active model -> $key"
-				if systemctl is-active --quiet nixstrata && confirm "restart nixstrata now?"; then
+				if double_running; then
+					if confirm "restart nixstrata double now?"; then
+						# both stop first, so the old model's shared arena is dropped
+						sudo systemctl stop "''${DOUBLE_ARR[@]}"
+						double_start
+					fi
+				elif systemctl is-active --quiet nixstrata && confirm "restart nixstrata now?"; then
 					sudo systemctl restart nixstrata
 					if wait_health; then echo "nixstrata: up at http://0.0.0.0:$PORT"; else die "did not come up - 'nixstrata logs'"; fi
 				fi
@@ -282,7 +376,7 @@ let
 				local key="$1" d pack
 				d="$(dir_of "$key")"
 				pack="$STATE/packs/$key"
-				if [ "$(cfg_get STRATA_MODEL "")" = "$key" ] && systemctl is-active --quiet nixstrata; then
+				if [ "$(cfg_get STRATA_MODEL "")" = "$key" ] && [ -n "$(running)" ]; then
 					die "$key is running - 'nixstrata stop' first"
 				fi
 				[ -e "$d" ] || [ -e "$pack" ] || die "$key has nothing on disk"
@@ -306,9 +400,13 @@ let
 				  nixstrata pull [model]         download a model (menu without one); checks access and disk first
 				  nixstrata use [model]          pick the model to run (prepares it on first use)
 				  nixstrata delete [model]       remove a model's files and pack
-				  nixstrata start|stop|restart   the service
-				  nixstrata status               service, settings and /health
-				  nixstrata logs [engine]        service journal, or the engine's own log
+				  nixstrata start|restart        one server on :$PORT across both GPUs
+				  nixstrata double [start|restart|stop|status]
+				                                 one server per GPU (:8091, :8092, sticky proxy :8090),
+				                                 sharing one copy of the experts in RAM
+				  nixstrata stop                 stop whichever is running
+				  nixstrata status               services, settings and /health
+				  nixstrata logs [a|b] [engine]  service journal, or the engine's own log (a/b: double)
 				  nixstrata context [n]          max context in tokens (default: the model's, 32768 for Orca)
 				  nixstrata gpus [0,1|0|1]       both cards (layer split, default) or one
 				  nixstrata top                  live: both GPUs, RAM, tok/s, expert cache hit/miss
@@ -370,7 +468,7 @@ let
 					;;
 				start|restart)
 					[ -n "$(cfg_get STRATA_MODEL "")" ] || die "no model selected - run 'nixstrata use'"
-					# Conflicts= stops nixllm (single, double) for us
+					# Conflicts= stops nixllm (single, double) and nixstrata double for us
 					sudo systemctl "$cmd" nixstrata
 					if wait_health; then
 						echo "nixstrata: up at http://0.0.0.0:$PORT  ($(health))"
@@ -378,28 +476,54 @@ let
 						die "did not come up - check 'nixstrata logs' and 'nixstrata logs engine'"
 					fi
 					;;
+				double)
+					sub="''${1:-start}"
+					case "$sub" in
+						start) double_start ;;
+						restart) sudo systemctl stop "''${DOUBLE_ARR[@]}"; double_start ;;
+						stop)
+							sudo systemctl stop "''${DOUBLE_ARR[@]}"
+							sudo systemctl stop nginx 2>/dev/null || true
+							echo "nixstrata: double stopped (shared arena freed)" ;;
+						status)
+							systemctl --no-pager --full status "''${DOUBLE_ARR[@]}" || true
+							echo
+							du -sh ${arenaDir}/*.arena 2>/dev/null | sed 's/^/arena   : /' || echo "arena   : (none)" ;;
+						*) die "usage: nixstrata double [start|restart|stop|status]" ;;
+					esac
+					;;
 				stop)
+					# whichever is running: the single server, or both double instances (+ their proxy)
+					if double_running; then
+						sudo systemctl stop "''${DOUBLE_ARR[@]}"
+						sudo systemctl stop nginx 2>/dev/null || true
+					fi
 					sudo systemctl stop nixstrata
 					echo "nixstrata: stopped"
 					;;
 				status)
-					systemctl --no-pager --full status nixstrata || true
-					echo
+					if double_running; then mode="double"; elif [ -n "$(running)" ]; then mode="single"; else mode="stopped"; fi
+					echo "mode    : $mode"
 					echo "model   : $(cfg_get STRATA_MODEL "(none - run 'nixstrata use')")"
 					echo "context : $(cfg_get STRATA_CTX "(model default)")"
-					echo "gpus    : $(cfg_get STRATA_GPUS "0,1")"
-					echo "endpoint: http://0.0.0.0:$PORT/v1"
-					echo "badger  : http://0.0.0.0:${toString badgerPort}  ($(systemctl is-active nixstrata-badger || true))"
+					echo "gpus    : $(cfg_get STRATA_GPUS "0,1") (single; double pins one per instance)"
+					echo "badger  : http://0.0.0.0:${toString badgerPort}  ($(systemctl is-active nixstrata-badger || true); nixllm's station map)"
 					echo "monitor : $(cfg_get STRATA_API_MONITOR off)"
 					if [ -s "$API_KEY_F" ]; then echo "apikey  : set"; fi
-					h="$(health)"
-					echo "health  : ''${h:-unreachable}"
+					while read -r u p; do
+						h="$(health "$p")"
+						echo "$u :$p  ''${h:-unreachable}"
+					done < <(running)
 					;;
 				logs)
+					unit="nixstrata"; log="$STATE/strata.log"
+					case "''${1:-}" in
+						a|b) unit="nixstrata-$1"; log="$STATE/strata-$1.log"; shift ;;
+					esac
 					if [ "''${1:-}" = engine ]; then
-						tail -n 200 -f "$STATE/strata.log"
+						tail -n 200 -f "$log"
 					else
-						journalctl -u nixstrata -n 200 -f
+						journalctl -u "$unit" -n 200 -f
 					fi
 					;;
 				context|ctx)
@@ -433,7 +557,7 @@ let
 					printf '\033[?1049h\033[?25l'
 					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT TERM EXIT
 					while :; do
-						m="$(curl -fsS --max-time 2 "''${mauth[@]}" "http://127.0.0.1:$PORT/metrics" 2>/dev/null || true)"
+						srv="$(running)"
 						printf '\033[H\033[2J'
 						echo "nixstrata top   $(date '+%H:%M:%S')   (Ctrl-C to exit)"
 						echo
@@ -465,10 +589,16 @@ let
 							"$(awk -v k=$(( mt - ma )) 'BEGIN{print k/1048576}')" "$(awk -v k="$mt" 'BEGIN{print k/1048576}')"
 						echo
 
-						if [ -z "$m" ]; then
-							echo "server: not reachable on :$PORT ('nixstrata status')"
+						if [ -z "$srv" ]; then
+							echo "no Strata server running ('nixstrata start' or 'nixstrata double')"
 							sleep 1; continue
 						fi
+
+						# one block per server: the single one, or both double instances
+						while read -r u p; do
+						m="$(curl -fsS --max-time 2 "''${mauth[@]}" "http://127.0.0.1:$p/metrics" 2>/dev/null || true)"
+						echo "== $u  :$p"
+						if [ -z "$m" ]; then echo "not answering yet (still loading? 'nixstrata logs')"; echo; continue; fi
 
 						# ---- live
 						printf '%s\n' "$m" | jq -r '
@@ -494,6 +624,8 @@ let
 							end'
 						echo
 						printf '%s\n' "$m" | jq -r '"since start: \(.totals.requests // 0) requests, \(.totals.prompt_tokens // 0) prompt tokens, \(.totals.output_tokens // 0) output tokens"'
+						echo
+						done <<< "$srv"
 						sleep 1
 					done
 					;;
@@ -536,59 +668,55 @@ in
 {
 	environment.systemPackages = [ nixstrataCli strata ];
 
-	networking.firewall.allowedTCPPorts = [ badgerPort ];
+	# The shared expert arena of nixstrata double: RAM-backed, sized for the largest catalog
+	# model's arena (tmpfs only uses what is written; the cleanup above empties it).
+	fileSystems."${arenaDir}" = {
+		device = "tmpfs";
+		fsType = "tmpfs";
+		options = [ "size=72G" "mode=0750" "nosuid" "nodev" ];
+	};
 
 	# group-writable by wheel so the CLI needs no sudo, like nixllm's state dir
 	systemd.tmpfiles.rules = [
 		"d ${stateDir} 0775 llm wheel -"
+		"d ${arenaDir} 0750 llm llm -"
 	];
 
-	# Started on demand by 'nixstrata start' - not in multi-user.target.
-	systemd.services.nixstrata = {
-		description = "Strata server (managed by the nixstrata CLI)";
-		# Two-way: starting nixstrata stops these, starting any of them stops nixstrata.
-		# They all want port ${toString port}, both GPUs and most of the RAM.
-		conflicts = [
-			"nixllm.service"
-			"nixllm-single-a.service"
-			"nixllm-single-b.service"
-			"nixllm-double-a.service"
-			"nixllm-double-b.service"
-		];
-		environment = {
-			STRATA_GGUF_PY = "${strata.llamaSrc}/gguf-py";
-		};
-		serviceConfig = {
-			ExecStartPre = writeConfig;
-			ExecStart = "${python}/bin/python -m serve.server --engine strata --config ${stateDir}/strata.json --port ${toString port}";
-			WorkingDirectory = share;
-			User = "llm";
-			Group = "llm";
-			SupplementaryGroups = [ "video" "render" ];
-			# the expert arena is pinned (page-locked) RAM
-			LimitMEMLOCK = "infinity";
-			Restart = "on-failure";
-			RestartSec = 5;
-			TimeoutStartSec = "15min";
-			TimeoutStopSec = 30;
-		};
-	};
+	# nixstrata double: one engine per GPU, started by 'nixstrata double' (b once a is up,
+	# so a writes the shared arena first and b finds it filled).
+	systemd.services = lib.mapAttrs' (n: i: lib.nameValuePair "nixstrata-${n}" (mkStrataService {
+		description = "Strata server (nixstrata double, GPU ${toString i.gpu})";
+		configName = "strata-${n}.json";
+		servicePort = i.port;
+		instArgs = "${n} ${toString i.gpu} ${toString i.port} ${arenaDir}";
+		conflicts = nixllmUnits;
+		extra.serviceConfig.ExecStopPost = arenaCleanup;
+	})) doubleInstances // {
 
-	# Super Badger Station Standard API for Strata on :${toString badgerPort}:
-	# {"${badgerStation}": {tokens_per_sec, expert_hit_pct, gpu0_temp_c, ram_used_pct, ...}}.
-	# wantedBy + partOf nixstrata.service: started and stopped (and restarted) with it,
-	# so it is up exactly while Strata is - including while the model loads ("up": 0).
-	systemd.services.nixstrata-badger = {
-		description = "Super Badger station endpoint for nixstrata";
-		wantedBy = [ "nixstrata.service" ];
-		partOf = [ "nixstrata.service" ];
-		after = [ "nixstrata.service" ];
-		serviceConfig = {
-			ExecStart = "${python}/bin/python ${./strata/nixstrata-badger.py} ${toString badgerPort} ${toString port} ${badgerStation} ${stateDir} ${share} ${strata}/libexec/strata/strata";
-			User = "llm";
-			Group = "llm";
-			Restart = "on-failure";
-			RestartSec = 2;
+		# Started on demand by 'nixstrata start' - not in multi-user.target.
+		nixstrata = mkStrataService {
+			description = "Strata server (managed by the nixstrata CLI)";
+			configName = "strata.json";
+			servicePort = port;
+			conflicts = nixllmUnits ++ map (n: "nixstrata-${n}.service") (lib.attrNames doubleInstances);
+		};
+
+		# Super Badger Station Standard API on nixllm's badger port, with nixllm's station map.
+		# Wanted by every Strata server; Conflicts= stops nixllm's adapter to free the port, and
+		# when no Strata server is left this one exits cleanly and OnSuccess= starts nixllm's again.
+		nixstrata-badger = {
+			description = "Super Badger station endpoint for nixstrata (stands in for nixllm-badger-api)";
+			conflicts = [ "nixllm-badger-api.service" ];
+			after = [ "nixllm-badger-api.service" ];
+			unitConfig.OnSuccess = [ "nixllm-badger-api.service" ];
+			path = [ pkgs.systemd ];
+			serviceConfig = {
+				ExecStart = "${python}/bin/python ${./strata/nixstrata-badger.py} ${toString badgerPort} ${stateDir} ${share} ${strata}/libexec/strata/strata ${badgerStationMap} ${lib.escapeShellArgs badgerServers}";
+				User = "llm";
+				Group = "llm";
+				Restart = "on-failure";
+				RestartSec = 2;
+			};
 		};
 	};
 }
