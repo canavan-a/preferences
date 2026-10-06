@@ -15,6 +15,9 @@ let
 	# models/*.gguf non-recursively, so the shards stay out of them.
 	modelsRoot = "/var/lib/nixllm/models";
 	port       = 8080;
+	# Super Badger station endpoint for Strata (strata/nixstrata-badger.py), up only while nixstrata runs
+	badgerPort    = 9998;
+	badgerStation = "strata";
 
 	# Models nixstrata can pull / use / delete. To add one, add an entry.
 	#   files:      every shard, as named in the repo (shard 1 first)
@@ -308,6 +311,8 @@ let
 				  nixstrata logs [engine]        service journal, or the engine's own log
 				  nixstrata context [n]          max context in tokens (default: the model's, 32768 for Orca)
 				  nixstrata gpus [0,1|0|1]       both cards (layer split, default) or one
+				  nixstrata top                  live: both GPUs, RAM, tok/s, expert cache hit/miss
+				  nixstrata monitor [on|off]     /api-monitor page: the last 100 API requests and answers
 				  nixstrata apikey [show|set <k>|generate|clear]
 				EOF
 			}
@@ -384,6 +389,8 @@ let
 					echo "context : $(cfg_get STRATA_CTX "(model default)")"
 					echo "gpus    : $(cfg_get STRATA_GPUS "0,1")"
 					echo "endpoint: http://0.0.0.0:$PORT/v1"
+					echo "badger  : http://0.0.0.0:${toString badgerPort}  ($(systemctl is-active nixstrata-badger || true))"
+					echo "monitor : $(cfg_get STRATA_API_MONITOR off)"
 					if [ -s "$API_KEY_F" ]; then echo "apikey  : set"; fi
 					h="$(health)"
 					echo "health  : ''${h:-unreachable}"
@@ -412,6 +419,98 @@ let
 					esac
 					restart_hint
 					;;
+				top)
+					# Live terminal dashboard: both GPUs (amdgpu sysfs - Strata's own Monitor tab reads
+					# only GPU 0), system RAM, and the server's /metrics (speed, expert cache hits).
+					mauth=()
+					if [ -s "$API_KEY_F" ]; then mauth=(-H "Authorization: Bearer $(cat "$API_KEY_F")"); fi
+					# a sysfs number, 0 when unreadable (a sleeping GPU answers EBUSY)
+					num() { local v; v="$(cat "$1" 2>/dev/null || true)"; case "$v" in ""|*[!0-9]*) echo 0 ;; *) echo "$v" ;; esac; }
+					bar() {   # bar <0-100> -> 20-char gauge
+						awk -v p="$1" 'BEGIN { if (p == "" || p == "null") p = 0; n = int(p / 5 + 0.5); if (n > 20) n = 20
+							s = ""; for (i = 0; i < 20; i++) s = s (i < n ? "#" : "."); printf "[%s]", s }'
+					}
+					printf '\033[?1049h\033[?25l'
+					trap 'printf "\033[?25h\033[?1049l"; exit 0' INT TERM EXIT
+					while :; do
+						m="$(curl -fsS --max-time 2 "''${mauth[@]}" "http://127.0.0.1:$PORT/metrics" 2>/dev/null || true)"
+						printf '\033[H\033[2J'
+						echo "nixstrata top   $(date '+%H:%M:%S')   (Ctrl-C to exit)"
+						echo
+
+						# ---- GPUs
+						i=0
+						for d in /sys/class/drm/card*/device; do
+							if ! grep -qs '^DRIVER=amdgpu$' "$d/uevent" || [ ! -r "$d/mem_info_vram_total" ]; then continue; fi
+							util="$(num "$d/gpu_busy_percent")"; vu="$(num "$d/mem_info_vram_used")"; vt="$(num "$d/mem_info_vram_total")"
+							[ "$vt" -gt 0 ] || vt=1
+							temp="-"; pw="-"
+							for h in "$d"/hwmon/hwmon*; do
+								t="$(num "$h/temp1_input")"
+								if [ "$t" -gt 0 ]; then temp="$(( t / 1000 ))C"; fi
+								for pf in power1_average power1_input; do
+									p="$(num "$h/$pf")"
+									if [ "$p" -gt 0 ]; then pw="$(( p / 1000000 ))W"; break; fi
+								done
+							done
+							printf 'GPU %d  load %s %3s%%   vram %s %5.1f / %4.1f GiB   %s  %s\n' "$i" \
+								"$(bar "$util")" "$util" "$(bar $(( vu * 100 / vt )))" \
+								"$(awk -v b="$vu" 'BEGIN{print b/1073741824}')" "$(awk -v b="$vt" 'BEGIN{print b/1073741824}')" "$temp" "$pw"
+							i=$(( i + 1 ))
+						done
+
+						# ---- RAM (MemAvailable, as free -h's "available")
+						read -r mt ma < <(awk '/^MemTotal:/{t=$2} /^MemAvailable:/{a=$2} END{print t, a}' /proc/meminfo)
+						printf 'RAM    used %s %5.1f / %5.1f GiB\n' "$(bar $(( (mt - ma) * 100 / mt )))" \
+							"$(awk -v k=$(( mt - ma )) 'BEGIN{print k/1048576}')" "$(awk -v k="$mt" 'BEGIN{print k/1048576}')"
+						echo
+
+						if [ -z "$m" ]; then
+							echo "server: not reachable on :$PORT ('nixstrata status')"
+							sleep 1; continue
+						fi
+
+						# ---- live
+						printf '%s\n' "$m" | jq -r '
+							.live as $l | .engine as $e |
+							"model  \($e.model)   context \($e.max_context)   experts in VRAM \($e.expert_slots // "-")",
+							"state  \($l.state)" +
+							(if $l.state == "generating" then "   \($l.tok_s // "-") tok/s now, \($l.tok_s_mean // "-") mean   (\($l.generated // 0) tokens)"
+							 elif $l.state == "reading" then "   prompt \($l.prompt_read // "?") / \($l.prompt_total // "?") tokens"
+							 else "" end)'
+						echo
+
+						# ---- last finished request: speed and expert cache
+						printf '%s\n' "$m" | jq -r '
+							(.requests[0] // null) as $r |
+							if $r == null then "last request: none yet" else
+							"last request  \($r.prompt_tokens) in / \($r.output_tokens) out   \($r.duration_s)s",
+							"  output      \($r.decode_tok_s // "-") tok/s",
+							"  prompt      \(if $r.prompt_ms and $r.prompt_read then (($r.prompt_read / ($r.prompt_ms / 1000)) | floor | tostring) + " tok/s" else "-" end)",
+							"  expert hit  \(if $r.hit_rate then (($r.hit_rate * 1000 | round) / 10 | tostring) + "% in VRAM,  miss " + (((1 - $r.hit_rate) * 1000 | round) / 10 | tostring) + "%" else "-" end)" +
+							"\(if $r.pcie_share then "   (+" + (($r.pcie_share * 1000 | round) / 10 | tostring) + "% read over PCIe)" else "" end)",
+							"  misses from RAM \($r.ram_blobs // "-")   from disk \($r.file_blobs // "-")",
+							"  drafts      \(if $r.drafts_offered then "\($r.drafts_accepted)/\($r.drafts_offered) accepted (" + (($r.drafts_accepted * 100 / $r.drafts_offered) | floor | tostring) + "%)" else "-" end)"
+							end'
+						echo
+						printf '%s\n' "$m" | jq -r '"since start: \(.totals.requests // 0) requests, \(.totals.prompt_tokens // 0) prompt tokens, \(.totals.output_tokens // 0) output tokens"'
+						sleep 1
+					done
+					;;
+				monitor)
+					if [ "$#" -eq 0 ]; then
+						echo "api monitor: $(cfg_get STRATA_API_MONITOR off)  (http://<host>:$PORT/api-monitor)"
+						exit 0
+					fi
+					case "$1" in
+						on)  cfg_set STRATA_API_MONITOR on
+						     echo "nixstrata: api monitor on - the last 100 API requests (prompts and answers) are kept in memory"
+						     echo "nixstrata: view at http://<host>:$PORT/api-monitor" ;;
+						off) cfg_unset STRATA_API_MONITOR; echo "nixstrata: api monitor off" ;;
+						*)   die "usage: nixstrata monitor [on|off]" ;;
+					esac
+					restart_hint
+					;;
 				apikey)
 					sub="''${1:-show}"
 					case "$sub" in
@@ -436,6 +535,8 @@ let
 in
 {
 	environment.systemPackages = [ nixstrataCli strata ];
+
+	networking.firewall.allowedTCPPorts = [ badgerPort ];
 
 	# group-writable by wheel so the CLI needs no sudo, like nixllm's state dir
 	systemd.tmpfiles.rules = [
@@ -470,6 +571,24 @@ in
 			RestartSec = 5;
 			TimeoutStartSec = "15min";
 			TimeoutStopSec = 30;
+		};
+	};
+
+	# Super Badger Station Standard API for Strata on :${toString badgerPort}:
+	# {"${badgerStation}": {tokens_per_sec, expert_hit_pct, gpu0_temp_c, ram_used_pct, ...}}.
+	# wantedBy + partOf nixstrata.service: started and stopped (and restarted) with it,
+	# so it is up exactly while Strata is - including while the model loads ("up": 0).
+	systemd.services.nixstrata-badger = {
+		description = "Super Badger station endpoint for nixstrata";
+		wantedBy = [ "nixstrata.service" ];
+		partOf = [ "nixstrata.service" ];
+		after = [ "nixstrata.service" ];
+		serviceConfig = {
+			ExecStart = "${python}/bin/python ${./strata/nixstrata-badger.py} ${toString badgerPort} ${toString port} ${badgerStation} ${stateDir} ${share} ${strata}/libexec/strata/strata";
+			User = "llm";
+			Group = "llm";
+			Restart = "on-failure";
+			RestartSec = 2;
 		};
 	};
 }

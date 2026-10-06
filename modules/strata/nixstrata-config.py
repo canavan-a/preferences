@@ -114,6 +114,9 @@ if len(gpus) > 1:
 elif gpus:
     out["gpu"] = gpus[0]
 out["gpus_asked"] = True
+# /api-monitor: the last 100 API requests' prompts and answers, kept in memory (off unless asked for)
+if cfg_in.get("STRATA_API_MONITOR") == "on":
+    out["api_monitor"] = True
 key_f = state / "apikey"
 if key_f.exists() and key_f.read_text().strip():
     out["api_key"] = key_f.read_text().strip()
