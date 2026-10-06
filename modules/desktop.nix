@@ -365,6 +365,7 @@ in
 			enable = true;
 			settings = {
 				confirm_os_window_close = 0;
+				remember_window_size = "no";
 				allow_remote_control = "yes";
 				listen_on = "unix:/tmp/kitty-{kitty_pid}";
 			};
@@ -602,6 +603,19 @@ in
 				general = {
 					border_size = 2;
 					# border colors are managed by stylix
+				};
+
+				# "minimal-2" preset (HyDE animation collection), sped up from 6 to 3
+				animations = {
+					enabled = true;
+					bezier = [ "quart, 0.25, 1, 0.5, 1" ];
+					animation = [
+						"windows, 1, 3, quart, slide"
+						"border, 1, 3, quart"
+						"borderangle, 1, 3, quart"
+						"fade, 1, 3, quart"
+						"workspaces, 1, 3, quart"
+					];
 				};
 
 			};
