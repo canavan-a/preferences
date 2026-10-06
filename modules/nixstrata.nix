@@ -711,7 +711,18 @@ in
 		servicePort = i.port;
 		instArgs = "${n} ${toString i.gpu} ${toString i.port} ${arenaDir}";
 		conflicts = nixllmUnits;
-		extra.serviceConfig.ExecStopPost = arenaCleanup;
+		extra = {
+			unitConfig.RequiresMountsFor = arenaDir;
+			serviceConfig = {
+				# the tmpfs mounts root-owned (tmpfiles may run before the mount exists): hand it
+				# to llm first ("+": this one step as root), then write the config as llm
+				ExecStartPre = [
+					"+${pkgs.coreutils}/bin/chown llm:llm ${arenaDir}"
+					"${writeConfig "${n} ${toString i.gpu} ${toString i.port} ${arenaDir}"}"
+				];
+				ExecStopPost = arenaCleanup;
+			};
+		};
 	})) doubleInstances // {
 
 		# Started on demand by 'nixstrata start' - not in multi-user.target.
