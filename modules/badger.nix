@@ -23,6 +23,18 @@
 	# Run it as badger so it actually picks up these providers.
 	systemd.services.opencode-serve.serviceConfig.User = "badger";
 
+	# Root access for the agent stack: opencode-serve (runs as badger, above)
+	# and superbadger (super-badger's module runs it as the superbadger system
+	# user) can both `sudo` anything without a password. NixOS services get a
+	# minimal PATH, so put the setuid wrappers dir (/run/wrappers/bin, where
+	# sudo lives) on it explicitly.
+	security.sudo.extraRules = [{
+		users = [ "badger" "superbadger" ];
+		commands = [{ command = "ALL"; options = [ "NOPASSWD" ]; }];
+	}];
+	systemd.services.opencode-serve.path = [ "/run/wrappers" ];
+	systemd.services.superbadger.path = [ "/run/wrappers" ];
+
 	home-manager.users.badger = {
 		home.stateVersion = "25.11";
 		programs.opencode = {
