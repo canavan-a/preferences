@@ -98,6 +98,10 @@ let
 		lib.recursiveUpdate {
 			inherit description conflicts;
 			wants = [ "nixstrata-badger.service" ];
+			# a crash at start (bad config, arena error) gives up after 3 tries instead of
+			# reloading ~50 GB every 5 s forever
+			startLimitIntervalSec = 600;
+			startLimitBurst = 3;
 			environment.STRATA_GGUF_PY = "${strata.llamaSrc}/gguf-py";
 			serviceConfig = {
 				ExecStartPre = writeConfig instArgs;
