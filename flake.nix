@@ -109,6 +109,7 @@
 				./hardware-configuration-wrx.nix
 				./cloudflare/cf.nix
 				./modules/wrx80-local-ai.nix
+				./modules/nixstrata.nix
 			];
 		};
 
