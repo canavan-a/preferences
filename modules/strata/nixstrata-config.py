@@ -128,10 +128,11 @@ if len(gpus) > 1:
 elif gpus:
     out["gpu"] = gpus[0]
 out["gpus_asked"] = True
-# Qwen's recommended thinking-mode sampling (Qwen3.8-Flash-Next model card, "Best Practices"), as the default for
-# any field a request leaves out - without it Strata decodes greedily, which makes reasoning loops more likely.
-# A request's own values still win. A catalog entry's "sampling" replaces it.
-out["sampling"] = m.get("sampling", {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
+# Qwen's recommended thinking-mode sampling (Qwen3.8-Flash-Next model card, "Best Practices") with temperature
+# lowered from 1.0 to 0.6 for steadier agent work, as the default for any field a request leaves out - without it
+# Strata decodes greedily (0), which caused reasoning loops. A request's own values still win. A catalog entry's
+# "sampling" replaces it.
+out["sampling"] = m.get("sampling", {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
                                      "presence_penalty": 0.0, "repetition_penalty": 1.0})
 # /api-monitor: the last 100 API requests' prompts and answers, kept in memory (off unless asked for)
 if cfg_in.get("STRATA_API_MONITOR") == "on":
