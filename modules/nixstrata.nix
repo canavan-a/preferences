@@ -281,8 +281,9 @@ let
 				while read -r u p; do
 					case "$u" in nixstrata-*) ;; *) continue ;; esac
 					echo "nixstrata: starting $u (port $p) ..."
-					sudo systemctl start "$u"
-					if ! wait_health "$u" "$p"; then
+					# a deliberate start clears an earlier crash loop's start limit
+					sudo systemctl reset-failed "$u" 2>/dev/null || true
+					if ! sudo systemctl start "$u" || ! wait_health "$u" "$p"; then
 						show_failure "$u" "$STATE/strata-''${u#nixstrata-}.log"
 						die "$u did not come up - more: 'nixstrata logs ''${u#nixstrata-}' / 'nixstrata logs ''${u#nixstrata-} engine'"
 					fi
@@ -487,8 +488,8 @@ let
 				start|restart)
 					[ -n "$(cfg_get STRATA_MODEL "")" ] || die "no model selected - run 'nixstrata use'"
 					# Conflicts= stops nixllm (single, double) and nixstrata double for us
-					sudo systemctl "$cmd" nixstrata
-					if wait_health; then
+					sudo systemctl reset-failed nixstrata 2>/dev/null || true
+					if sudo systemctl "$cmd" nixstrata && wait_health; then
 						echo "nixstrata: up at http://0.0.0.0:$PORT  ($(health))"
 					else
 						show_failure nixstrata "$STATE/strata.log"
