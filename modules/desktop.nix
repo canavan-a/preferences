@@ -368,6 +368,8 @@ in
 				remember_window_size = "no";
 				allow_remote_control = "yes";
 				listen_on = "unix:/tmp/kitty-{kitty_pid}";
+				# Plain-click links wait this long to rule out a double-click; we don't use double-click.
+				click_interval = "0.05";
 			};
 			keybindings = {
 				"ctrl+shift+left" = "no_op";
