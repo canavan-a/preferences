@@ -257,6 +257,17 @@ let
 				return 1
 			}
 
+			# show_failure UNIT ENGINE-LOG: why a start failed, without a second command
+			show_failure() {
+				echo "---- journal: $1" >&2
+				journalctl -u "$1" -n 25 --no-pager -o cat >&2 || true
+				if [ -f "$2" ]; then
+					echo "---- engine log: $2" >&2
+					tail -n 25 "$2" >&2
+				fi
+				echo "----" >&2
+			}
+
 			# nixstrata double: a first (it writes the shared expert arena), b once a is up
 			# (it finds the arena filled), then nginx's sticky proxy on 8090
 			double_start() {
@@ -267,7 +278,10 @@ let
 					case "$u" in nixstrata-*) ;; *) continue ;; esac
 					echo "nixstrata: starting $u (port $p) ..."
 					sudo systemctl start "$u"
-					wait_health "$u" "$p" || die "$u did not come up - 'nixstrata logs $u'"
+					if ! wait_health "$u" "$p"; then
+						show_failure "$u" "$STATE/strata-''${u#nixstrata-}.log"
+						die "$u did not come up - more: 'nixstrata logs ''${u#nixstrata-}' / 'nixstrata logs ''${u#nixstrata-} engine'"
+					fi
 					echo "nixstrata: $u up on :$p"
 				done <<< "$SERVERS"
 				sudo systemctl start nginx
@@ -473,7 +487,8 @@ let
 					if wait_health; then
 						echo "nixstrata: up at http://0.0.0.0:$PORT  ($(health))"
 					else
-						die "did not come up - check 'nixstrata logs' and 'nixstrata logs engine'"
+						show_failure nixstrata "$STATE/strata.log"
+						die "did not come up - more: 'nixstrata logs' / 'nixstrata logs engine'"
 					fi
 					;;
 				double)
@@ -518,7 +533,8 @@ let
 				logs)
 					unit="nixstrata"; log="$STATE/strata.log"
 					case "''${1:-}" in
-						a|b) unit="nixstrata-$1"; log="$STATE/strata-$1.log"; shift ;;
+						a|b|nixstrata-a|nixstrata-b)
+							i="''${1#nixstrata-}"; unit="nixstrata-$i"; log="$STATE/strata-$i.log"; shift ;;
 					esac
 					if [ "''${1:-}" = engine ]; then
 						tail -n 200 -f "$log"
