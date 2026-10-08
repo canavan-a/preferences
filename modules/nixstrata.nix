@@ -15,11 +15,15 @@ let
 	# models/*.gguf non-recursively, so the shards stay out of them.
 	modelsRoot = "/var/lib/nixllm/models";
 	port       = 8080;
-	# Super Badger endpoint (strata/nixstrata-badger.py): while a Strata server runs it takes
-	# over nixllm's badger port and station map, so Super Badger keeps one URL and the same
-	# station names (gpu-a, gpu-b, ...) whichever backend serves them.
-	badgerPort       = 9999;
-	badgerStationMap = "/var/lib/nixllm/badger-stations";
+	# Super Badger: strata/nixstrata-control.py owns the public badger port (always on) and
+	# serves the command list; station metrics pass through it to whichever adapter is up on
+	# the localhost-only adapter port - nixllm's while Strata is stopped, or
+	# strata/nixstrata-badger.py while a Strata server runs (same station map, so the station
+	# names gpu-a, gpu-b, ... stay put whichever backend serves them).
+	badgerPort        = 9999;
+	badgerAdapterPort = 9997;   # keep in step with wrx80-local-ai.nix's
+	badgerStationMap  = "/var/lib/nixllm/badger-stations";
+	badgerApiKeyF     = "/var/lib/nixllm/badger-apikey";
 
 	# nixstrata double: one Strata per GPU, the same ports as nixllm double (nginx's ip_hash
 	# proxy on 8090, from wrx80-local-ai.nix, in front of 8091/8092), so clients don't change.
@@ -242,6 +246,8 @@ let
 
 			confirm() {
 				local a
+				# NIXSTRATA_YES=1: answer yes (Super Badger's commands, via nixstrata-control)
+				if [ "''${NIXSTRATA_YES:-}" = 1 ]; then echo "$1 [y/N] y"; return 0; fi
 				printf '%s [y/N] ' "$1"
 				read -r a
 				case "$a" in y|Y|yes) return 0 ;; *) return 1 ;; esac
@@ -425,6 +431,7 @@ let
 				                                 sharing one copy of the experts in RAM
 				  nixstrata stop                 stop whichever is running
 				  nixstrata status               services, settings and /health
+				  nixstrata state                mode, settings and models as JSON (for nixstrata-control)
 				  nixstrata logs [a|b] [engine]  service journal, or the engine's own log (a/b: double)
 				  nixstrata context [n]          max context in tokens (default: the model's, 32768 for Orca)
 				  nixstrata gpus [0,1|0|1]       both cards (layer split, default) or one
@@ -527,13 +534,22 @@ let
 					echo "model   : $(cfg_get STRATA_MODEL "(none - run 'nixstrata use')")"
 					echo "context : $(cfg_get STRATA_CTX "(model default)")"
 					echo "gpus    : $(cfg_get STRATA_GPUS "0,1") (single; double pins one per instance)"
-					echo "badger  : http://0.0.0.0:${toString badgerPort}  ($(systemctl is-active nixstrata-badger || true); nixllm's station map)"
+					echo "badger  : http://0.0.0.0:${toString badgerPort}  (control $(systemctl is-active nixstrata-control || true), strata adapter $(systemctl is-active nixstrata-badger || true); nixllm's station map)"
 					echo "monitor : $(cfg_get STRATA_API_MONITOR off)"
 					if [ -s "$API_KEY_F" ]; then echo "apikey  : set"; fi
 					while read -r u p; do
 						h="$(health "$p")"
 						echo "$u :$p  ''${h:-unreachable}"
 					done < <(running)
+					;;
+				state)
+					if double_running; then mode="double"; elif [ -n "$(running)" ]; then mode="single"; else mode="stopped"; fi
+					models="$(while IFS= read -r k; do
+						jq -n --arg k "$k" --arg s "$(status_of "$k")" --arg a "$(field "$k" about)" '{key: $k, status: $s, about: $a}'
+					done < <(keys) | jq -s .)"
+					jq -n --arg mode "$mode" --arg model "$(cfg_get STRATA_MODEL "")" --arg gpus "$(cfg_get STRATA_GPUS "0,1")" \
+						--arg context "$(cfg_get STRATA_CTX "")" --argjson models "$models" \
+						'{mode: $mode, model: $model, gpus: $gpus, context: $context, models: $models}'
 					;;
 				logs)
 					unit="nixstrata"; log="$STATE/strata.log"
@@ -697,6 +713,23 @@ in
 		options = [ "size=72G" "mode=0750" "nosuid" "nodev" ];
 	};
 
+	# nixstrata-control runs the CLI as llm, and the CLI starts/stops its units through sudo:
+	# exactly those systemctl calls, without a password. Both systemctl paths, since sudo
+	# resolves it from the caller's PATH (the CLI's own systemd, or the system profile's).
+	security.sudo.extraRules = [{
+		users = [ "llm" ];
+		commands = map (command: { inherit command; options = [ "NOPASSWD" ]; })
+			(lib.concatMap (args: [
+				"${pkgs.systemd}/bin/systemctl ${args}"
+				"/run/current-system/sw/bin/systemctl ${args}"
+			]) ([
+				"start nixstrata" "restart nixstrata" "stop nixstrata" "reset-failed nixstrata"
+				"start nginx" "stop nginx"
+				"stop ${lib.concatMapStringsSep " " (n: "nixstrata-${n}") (lib.attrNames doubleInstances)}"
+			] ++ lib.concatMap (n: [ "start nixstrata-${n}" "reset-failed nixstrata-${n}" ])
+				(lib.attrNames doubleInstances)));
+	}];
+
 	# group-writable by wheel so the CLI needs no sudo, like nixllm's state dir
 	systemd.tmpfiles.rules = [
 		"d ${stateDir} 0775 llm wheel -"
@@ -733,9 +766,10 @@ in
 			conflicts = nixllmUnits ++ map (n: "nixstrata-${n}.service") (lib.attrNames doubleInstances);
 		};
 
-		# Super Badger Station Standard API on nixllm's badger port, with nixllm's station map.
-		# Wanted by every Strata server; Conflicts= stops nixllm's adapter to free the port, and
-		# when no Strata server is left this one exits cleanly and OnSuccess= starts nixllm's again.
+		# Super Badger Station Standard API on the localhost adapter port, with nixllm's station
+		# map (nixstrata-control passes metrics requests here). Wanted by every Strata server;
+		# Conflicts= stops nixllm's adapter to free the port, and when no Strata server is left
+		# this one exits cleanly and OnSuccess= starts nixllm's again.
 		nixstrata-badger = {
 			description = "Super Badger station endpoint for nixstrata (stands in for nixllm-badger-api)";
 			conflicts = [ "nixllm-badger-api.service" ];
@@ -743,11 +777,32 @@ in
 			unitConfig.OnSuccess = [ "nixllm-badger-api.service" ];
 			path = [ pkgs.systemd ];
 			serviceConfig = {
-				ExecStart = "${python}/bin/python ${./strata/nixstrata-badger.py} ${toString badgerPort} ${stateDir} ${share} ${strata}/libexec/strata/strata ${badgerStationMap} ${lib.escapeShellArgs badgerServers}";
+				ExecStart = "${python}/bin/python ${./strata/nixstrata-badger.py} ${toString badgerAdapterPort} ${stateDir} ${share} ${strata}/libexec/strata/strata ${badgerStationMap} ${lib.escapeShellArgs badgerServers}";
 				User = "llm";
 				Group = "llm";
 				Restart = "on-failure";
 				RestartSec = 2;
+			};
+		};
+
+		# Super Badger's front on the public badger port (strata/nixstrata-control.py): the
+		# nixstrata commands (mode, GPUs, model, context) plus the station metrics passed
+		# through to the adapter port. Always on, so the commands work with no model running
+		# and a command that swaps the adapters keeps its connection.
+		nixstrata-control = {
+			description = "Super Badger front: nixstrata commands + station metrics passthrough";
+			wantedBy = [ "multi-user.target" ];
+			after = [ "network.target" ];
+			# the CLI, and sudo from the setuid wrappers (NixOS services get a minimal PATH)
+			path = [ nixstrataCli "/run/wrappers" ];
+			environment.HOME = stateDir;
+			serviceConfig = {
+				ExecStart = "${pkgs.python3}/bin/python ${./strata/nixstrata-control.py} ${toString badgerPort} ${toString badgerAdapterPort} ${badgerApiKeyF}";
+				User = "llm";
+				Group = "llm";
+				# metrics pass through here too: come straight back
+				Restart = "always";
+				RestartSec = 1;
 			};
 		};
 	};

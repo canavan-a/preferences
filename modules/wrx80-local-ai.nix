@@ -21,6 +21,11 @@ let
 	badgerApiKeyF     = "${stateDir}/badger-apikey";
 	badgerPort        = "9999";
 	badgerPortInt     = 9999;
+	# The adapter itself listens here, localhost only: nixstrata.nix's
+	# nixstrata-control owns ${badgerPort} and passes metrics requests through
+	# (it also serves Super Badger's command list). Keep in step with
+	# nixstrata.nix's badgerAdapterPort.
+	badgerAdapterPort = "9997";
 
 	# nixllm double: two full model copies, one pinned per GPU, fronted by an
 	# nginx ip_hash proxy for session-sticky routing. Backends are
@@ -1589,7 +1594,8 @@ in
 	systemd.services.nginx.wantedBy = lib.mkForce [ ];
 
 	# Super Badger Station Standard API adapter - replaces the old plain GPU
-	# JSON dump on :9999. GET any path returns {"<station>": {"gpu_temp_c":..,
+	# JSON dump; reached through nixstrata-control on :9999, it listens on
+	# 127.0.0.1:${badgerAdapterPort}. GET any path returns {"<station>": {"gpu_temp_c":..,
 	# "gpu_util_pct":.., "tokens_per_sec":..}} for every station in
 	# ${badgerStationMapF} (see 'nixllm badger map'). Optional Bearer auth via
 	# ${badgerApiKeyF} ('nixllm badger apikey').
@@ -1597,7 +1603,7 @@ in
 		description = "Super Badger Station Standard API adapter";
 		wantedBy = [ "multi-user.target" ];
 		serviceConfig = {
-			ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:${badgerPort},fork,reuseaddr,bind=0.0.0.0 EXEC:${badgerHttp}";
+			ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:${badgerAdapterPort},fork,reuseaddr,bind=127.0.0.1 EXEC:${badgerHttp}";
 			Restart = "on-failure";
 			RestartSec = 2;
 			User = "llm";

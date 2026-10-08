@@ -286,4 +286,5 @@ def exit_when_idle():
 
 
 threading.Thread(target=exit_when_idle, daemon=True).start()
-ThreadingHTTPServer(("0.0.0.0", port), Handler).serve_forever()
+# localhost only: strata/nixstrata-control.py owns the public badger port and passes metrics requests here
+ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()

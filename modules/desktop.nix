@@ -120,6 +120,15 @@ in
 	# 	          manageBroker = false;
 	# 	        };
 	
+	# micro.desktop otherwise wins text/html, so xdg-open (e.g. nixos-help) launched
+	# micro with no terminal, where it spun at 100% CPU unseen.
+	xdg.mime.defaultApplications = {
+		"text/html" = "brave-browser.desktop";
+		"application/xhtml+xml" = "brave-browser.desktop";
+		"x-scheme-handler/http" = "brave-browser.desktop";
+		"x-scheme-handler/https" = "brave-browser.desktop";
+	};
+
 	users.users.nixos.extraGroups = [ "video" "dialout" ];
 		
 	home-manager.users.nixos = {
@@ -369,13 +378,18 @@ in
 				allow_remote_control = "yes";
 				listen_on = "unix:/tmp/kitty-{kitty_pid}";
 				# Plain-click links wait this long to rule out a double-click; we don't use double-click.
-				click_interval = "0.05";
+				# Too low (e.g. 0.05) and a normal press/release no longer counts as a click.
+				click_interval = "0.2";
 			};
 			keybindings = {
 				"ctrl+shift+left" = "no_op";
 				"ctrl+shift+right" = "no_op";
 				"ctrl+backspace" = "send_text all \\x17";
 			};
+			# Alt+click opens links on press, skipping the click_interval wait (also works inside TUIs).
+			extraConfig = ''
+				mouse_map alt+left press ungrabbed,grabbed mouse_click_url
+			'';
 		};
 		
 		systemd.user.services.sentry-mode = {
