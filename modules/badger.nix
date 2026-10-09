@@ -10,6 +10,9 @@
 	services.superbadger = {
 		enable = true;
 		mullvad.enable = true;
+		# block everything off-tunnel, but keep the LAN reachable
+		mullvad.lockdown = true;
+		mullvad.allowLan = true;
 		web.enable = true;
 	};
 
