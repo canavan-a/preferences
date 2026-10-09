@@ -42,6 +42,7 @@ let
 
 	# Models nixstrata can pull / use / delete. To add one, add an entry.
 	#   files:      every shard, as named in the repo (shard 1 first)
+	#   subdir:     the repo folder the shards are in, if not its top level (they still land flat in dir)
 	#   pack_args:  tools/iq_pack.py flags (--compat-bf16: ordinary GGUFs quantize small
 	#               projections Strata reads as BF16; docs/ORCA.md)
 	#   prefill / context: starting engine settings (ORCA.md's validated ones)
@@ -74,6 +75,29 @@ let
 			prefill = 512;
 			context = 32768;
 			ram_gb = 82;   # estimate: no upstream figure for this quant
+		};
+		# ISTA-DASLab's own quantization of the original model, the one Strata is built around - packed as is (no
+		# --compat-bf16), like setup.py's "qwen" family. extra_args turn on Strata's bundled refusal-direction vector
+		# (docs/DETAILS.md, "Experimental speed projection") with setup's flags; a request can still switch it off
+		# with "experimental_speed_projection": false.
+		"gsq-iq3_s" = {
+			about = "ISTA-DASLab GSQ-RCO IQ3_S, 84 GB, with Strata's bundled uncensoring vector";
+			repo = "ISTA-DASLab/Qwen3.8-Flash-Next-GSQ-RCO-GGUF";
+			subdir = "IQ3_S";
+			files = [
+				"Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00001-of-00002.gguf"
+				"Qwen3.8-Flash-Next-GSQ-RCO-IQ3_S-00002-of-00002.gguf"
+			];
+			dir = "${modelsRoot}/gsq-iq3_s";
+			pack_args = [ ];
+			prefill = 512;
+			context = 32768;
+			ram_gb = 75;   # setup.py's rule: its 50.3 GB of experts + 24 GB for everything else
+			extra_args = [
+				"--control-vector-scaled" "${share}/data/experimental-speed-projection/Qwen3.8-Flash-Next-experimental-speed-projection.gguf:1.0"
+				"--control-vector-layer-range" "4" "44"
+				"--cvec-mode" "project" "--cvec-dir" "per-layer"
+			];
 		};
 	};
 	catalogJson = pkgs.writeText "nixstrata-catalog.json" (builtins.toJSON catalog);
@@ -193,6 +217,7 @@ let
 			field()     { jq -r --arg k "$1" ".[\$k].$2" "$CATALOG"; }
 			files_of()  { jq -r --arg k "$1" '.[$k].files[]' "$CATALOG"; }
 			dir_of()    { field "$1" dir; }
+			subdir_of() { jq -r --arg k "$1" '.[$k].subdir // ""' "$CATALOG"; }
 			need_key()  { known "$1" || die "unknown model '$1' (known: $(keys | tr '\n' ' '))"; }
 
 			# ---- disk
@@ -211,11 +236,12 @@ let
 			}
 			# total size from the Hub's file listing (public even for gated repos)
 			remote_bytes() {
-				local repo
+				local repo sub
 				repo="$(field "$1" repo)"
-				curl -fsS --max-time 30 "https://huggingface.co/api/models/$repo/tree/main" \
+				sub="$(subdir_of "$1")"
+				curl -fsS --max-time 30 "https://huggingface.co/api/models/$repo/tree/main''${sub:+/$sub}" \
 					| jq --argjson want "$(jq -c --arg k "$1" '.[$k].files' "$CATALOG")" \
-						'[.[] | select(.type == "file" and (.path as $p | $want | index($p))) | .size] | add // 0'
+						'[.[] | select(.type == "file") | select((.path | split("/") | last) as $p | $want | index($p)) | .size] | add // 0'
 			}
 			# "ready" (every shard finished), "partial", or "missing"
 			status_of() {
@@ -301,15 +327,16 @@ let
 
 			# ---- pull
 			pull() {
-				local key="$1" repo d tok code total have need extra free f url
+				local key="$1" repo d tok code total have need extra free f url sub
 				repo="$(field "$key" repo)"
+				sub="$(subdir_of "$key")"
 				d="$(dir_of "$key")"
 				tok="$(hf_token)"
 				auth=()
 				if [ -n "$tok" ]; then auth=(-H "Authorization: Bearer $tok"); fi
 
 				# the Orca repo is gated: check access before anything else
-				url="https://huggingface.co/$repo/resolve/main/$(files_of "$key" | head -n1)"
+				url="https://huggingface.co/$repo/resolve/main/''${sub:+$sub/}$(files_of "$key" | head -n1)"
 				code="$(curl -s -o /dev/null -w '%{http_code}' -I "''${auth[@]}" "$url")"
 				case "$code" in
 					200|302|307) ;;
@@ -354,7 +381,7 @@ let
 					echo "nixstrata: $f"
 					# .part until finished, so a cut-off download is never taken for a whole shard
 					curl -fL -C - --progress-bar "''${auth[@]}" -o "$d/$f.part" \
-						"https://huggingface.co/$repo/resolve/main/$f" || die "download failed: run 'nixstrata pull $key' again to resume"
+						"https://huggingface.co/$repo/resolve/main/''${sub:+$sub/}$f" || die "download failed: run 'nixstrata pull $key' again to resume"
 					mv "$d/$f.part" "$d/$f"
 				done < <(files_of "$key")
 				echo "nixstrata: $key downloaded - run 'nixstrata use $key'"
