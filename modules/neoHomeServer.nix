@@ -41,7 +41,8 @@ in
 	users.users."neo" = {
 		isNormalUser = true;
 		description = "neo";
-		extraGroups = [ "networkmanager" "wheel" ];
+		# audio: lets amixer/arecord reach the camera mic without sudo.
+		extraGroups = [ "networkmanager" "wheel" "audio" ];
 		packages = with pkgs; [];
 	};
 
@@ -58,6 +59,12 @@ in
 		enable = true;
 		extraPackages = with pkgs; [ intel-media-driver ];
 	};
+
+	# The camera mic's capture switch defaults to off (silence, not an error),
+	# so capture-eye's audio track carries zeros until it's turned on. This
+	# saves mixer state on shutdown and restores it at boot and on replug; set
+	# it once with `amixer -c Camera sset Mic cap`, then `sudo alsactl store`.
+	hardware.alsa.enablePersistence = true;
 
 	services.horus = {
 		enable = true;
