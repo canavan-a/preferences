@@ -24,10 +24,11 @@
 		inputs.nixpkgs.follows = "nixpkgs";
 	};
 	super-badger.url = "github:canavan-a/super-badger";
+	super-chat.url = "github:canavan-a/super-chat";
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, super-chat, ... } @ inputs:
   	let 
   	unstable = import nixpkgs-unstable {
   		system = "x86_64-linux";
@@ -121,6 +122,17 @@
 
 				./modules/badger.nix
 				super-badger.nixosModules.default
+			];
+		};
+
+		# The old stealth-operation server, now running Super Chat.
+		superchat = nixpkgs.lib.nixosSystem {
+			system = "x86_64-linux";
+			modules = serverBase ++ [
+				./hardware-configuration-superchat.nix
+				./cloudflare/cf.nix
+				./modules/superchat.nix
+				super-chat.nixosModules.default
 			];
 		};
 
