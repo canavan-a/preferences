@@ -620,11 +620,11 @@
         "nixpkgs": "nixpkgs_9"
       },
       "locked": {
-        "lastModified": 1791927585,
-        "narHash": "sha256-Hyt2uckdVbqpmSEJXlcayPo6zh6mDz6LbTCWQRidFL8=",
+        "lastModified": 1791929144,
+        "narHash": "sha256-IE7C5WAqhJ91FF3ZJP6nPRcei0HA6FHncOX8L3bThKo=",
         "owner": "canavan-a",
         "repo": "super-chat",
-        "rev": "8655c3cceca18337aab0fdd3d5ad00239f9d4cec",
+        "rev": "fd5032e42ce9c847bd3d536c5fbfd358b94ed6c9",
         "type": "github"
       },
       "original": {
