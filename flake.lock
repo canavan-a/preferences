@@ -275,11 +275,11 @@
         ]
       },
       "locked": {
-        "lastModified": 1792014844,
-        "narHash": "sha256-dbQJF1ybhSLIP8JOhbm0Fnegw32/TyeVxBDroGt527s=",
+        "lastModified": 1792092317,
+        "narHash": "sha256-UMKCS+DN0vnoD1kKRJffWbF9f77rGUWjf0HYTTa5f0w=",
         "owner": "canavan-a",
         "repo": "horus-33",
-        "rev": "587d9dd68b233a8651b64cf3e0ccb370d1d7ef33",
+        "rev": "170257fe43848b13e4109b6c8a018b27d502ec66",
         "type": "github"
       },
       "original": {
@@ -584,11 +584,11 @@
         "nixpkgs": "nixpkgs_8"
       },
       "locked": {
-        "lastModified": 1792088644,
-        "narHash": "sha256-UXBDN+f7mVvnn80wWFFG/IMWaDvQZvyCEPu0vPjXhy4=",
+        "lastModified": 1792097774,
+        "narHash": "sha256-6Pa8f2mmiZh4FH6iBGHK+12+bPOEIgjZVfg4P52cBrs=",
         "owner": "canavan-a",
         "repo": "super-chat",
-        "rev": "83191f0da886784c5e64107c0ff1f29cfbf4cee7",
+        "rev": "f7b7179cf7c7e0cf578750221c6e47d8f8372c65",
         "type": "github"
       },
       "original": {

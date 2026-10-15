@@ -33,6 +33,12 @@
 		androidCertSha256 = [ ];
 		web.enable = true;
 		web.listenAddr = "127.0.0.1:8081";
+		# FCM wake-ups for the Google Play build of the app: the Firebase
+		# service account key (Firebase console → Project settings → Service
+		# accounts → Generate new private key), put on the box once with
+		# `sudo install -D -m 600 -o root <key>.json /etc/superchat/fcm.json`.
+		# Not in the Nix store; the service reads it via LoadCredential.
+		fcmCredentialsFile = "/etc/superchat/fcm.json";
 	};
 
 	# Cloudflare tunnel: `sudo cf init <token>` once, then in the Cloudflare
