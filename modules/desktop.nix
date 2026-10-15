@@ -19,7 +19,6 @@ let
 in
 {
 
-	nixpkgs.overlays = [ inputs.claude-code.overlays.default ];
 	nixpkgs.config.android_sdk.accept_license = true;
 
 	environment.variables = {
@@ -60,7 +59,7 @@ in
 		kicad
 		glib
 		jira-cli-go
-		claude-code
+		unstable.claude-code
 		awscli2
 		unstable.pi-coding-agent
 		inputs.fleetman.packages.x86_64-linux.fleetman
