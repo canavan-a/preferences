@@ -134,6 +134,10 @@ out["gpus_asked"] = True
 # "sampling" replaces it.
 out["sampling"] = m.get("sampling", {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
                                      "presence_penalty": 0.0, "repetition_penalty": 1.0})
+# A request whose max_tokens doesn't fit the room left in the context gets its output cap shortened to that room
+# instead of a 400 - agent clients (opencode) send the model's full output limit every step, so a long session
+# would otherwise fail outright near the end of the context, and so would the compaction meant to rescue it.
+out["fit_max_tokens"] = True
 # /api-monitor: the last 100 API requests' prompts and answers, kept in memory (off unless asked for)
 if cfg_in.get("STRATA_API_MONITOR") == "on":
     out["api_monitor"] = True
