@@ -28,9 +28,11 @@
 		# Loopback only; cloudflared publishes it (see below).
 		listenAddr = "127.0.0.1:8080";
 		publicOrigin = "https://chat.superbadger.io";
-		# Fill in with the release key's SHA-256 so invite links open the app
-		# directly: keytool -list -v -keystore super-chat/release/release.keystore
-		androidCertSha256 = [ ];
+		# Play's app signing key SHA-256 (Play Console → App integrity → App
+		# signing), so invite links open the Google Play build directly.
+		androidCertSha256 = [
+			"43:DE:46:B6:30:53:13:CF:9A:A0:A1:F0:E7:FB:8C:50:C7:13:5B:7E:8C:CA:46:8D:FA:98:0B:DA:77:59:6A:93"
+		];
 		web.enable = true;
 		web.listenAddr = "127.0.0.1:8081";
 		# FCM wake-ups for the Google Play build of the app: the Firebase
