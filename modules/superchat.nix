@@ -41,9 +41,32 @@
 		fcmCredentialsFile = "/etc/superchat/fcm.json";
 	};
 
+	services.superatlas = {
+		enable = true;
+		# Loopback only, next to Super Chat's 8080/8081; cloudflared publishes
+		# it (see below). The web client is served from the same port, at /.
+		listenAddr = "127.0.0.1:8090";
+		publicOrigin = "https://atlas.superbadger.io";
+		# Fill in with the release key's SHA-256 so invite links open the app
+		# directly: super-atlas/release/gen-keystore.sh prints it.
+		androidCertSha256 = [ ];
+		web.enable = true;
+		# The Gmail account sign-in codes are sent from, put on the box once:
+		#   sudo install -D -m 600 -o root /dev/stdin /etc/superatlas/env <<EOF
+		#   SUPERATLAS_SMTP_EMAIL=...
+		#   SUPERATLAS_SMTP_APP_PASSWORD=...
+		#   EOF
+		# The service won't start until this file exists.
+		environmentFile = "/etc/superatlas/env";
+		# Google Play build notifications (Firebase service account key), once
+		# there's a Firebase project for super-atlas:
+		# fcmCredentialsFile = "/etc/superatlas/fcm.json";
+	};
+
 	# Cloudflare tunnel: `sudo cf init <token>` once, then in the Cloudflare
 	# dashboard route chat.superbadger.io → http://localhost:8080 (and, if you
-	# want the browser client, another hostname → http://localhost:8081).
+	# want the browser client, another hostname → http://localhost:8081), and
+	# atlas.superbadger.io → http://localhost:8090.
 	#
 	# common.nix enables Mullvad on every host; if it's ever connected it
 	# would cut cloudflared off from Cloudflare's edge, so run cloudflared
