@@ -33,6 +33,10 @@
 		androidCertSha256 = [
 			"43:DE:46:B6:30:53:13:CF:9A:A0:A1:F0:E7:FB:8C:50:C7:13:5B:7E:8C:CA:46:8D:FA:98:0B:DA:77:59:6A:93"
 		];
+		# The iOS app (Team ID.bundle ID), served in
+		# /.well-known/apple-app-site-association so invite links open the
+		# iPhone app directly.
+		appleAppIds = [ "4W9H62B6C2.com.superchatapp" ];
 		web.enable = true;
 		web.listenAddr = "127.0.0.1:8081";
 		# FCM wake-ups for the Google Play build of the app: the Firebase
