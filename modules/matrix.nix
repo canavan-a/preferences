@@ -12,7 +12,10 @@
 	#   nixos-rebuild switch --flake /etc/nixos#matrix \
 	#     --target-host root@13.184.85.196
 	# with ~/.ssh/nixos-key.pem (the "nixos-key" EC2 key pair) for root.
-	imports = [ "${modulesPath}/virtualisation/amazon-image.nix" ];
+	imports = [
+		"${modulesPath}/virtualisation/amazon-image.nix"
+		./nix-helpers.nix
+	];
 
 	nix.settings.experimental-features = [ "nix-command" "flakes" ];
 	networking.hostName = "matrix";
