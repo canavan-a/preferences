@@ -25,10 +25,11 @@
 	super-badger.url = "github:canavan-a/super-badger";
 	super-chat.url = "github:canavan-a/super-chat";
 	super-atlas.url = "github:canavan-a/super-atlas";
+	super-matrix.url = "github:canavan-a/super-matrix";
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, super-chat, super-atlas, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, super-chat, super-atlas, super-matrix, ... } @ inputs:
   	let 
   	unstable = import nixpkgs-unstable {
   		system = "x86_64-linux";
@@ -142,11 +143,8 @@
 			system = "x86_64-linux";
 			modules = [
 				./modules/matrix.nix
-				# Once github:canavan-a/super-matrix is pushed, add the
-				# `super-matrix.url = "github:canavan-a/super-matrix";` input
-				# and uncomment:
-				# ./modules/supermatrix.nix
-				# super-matrix.nixosModules.default
+				./modules/supermatrix.nix
+				super-matrix.nixosModules.default
 			];
 		};
 
