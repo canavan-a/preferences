@@ -11,9 +11,10 @@
 		enable = true;
 		adminHost = "aidan.supermatrix.io";
 		acmeEmail = "aidan@lunargen.com";
-		# Let's Encrypt staging until the first certs come through; then set
-		# false, `sudo rm -rf /var/lib/supermatrix/data/certs` and rebuild.
-		acmeStaging = true;
+		# Real Let's Encrypt certs (staging was only for the first run). To go
+		# back to staging, set true, `sudo rm -rf /var/lib/supermatrix/data/certs`
+		# and rebuild.
+		acmeStaging = false;
 		rootPasswordFile = "/etc/supermatrix/root-password";
 	};
 }
