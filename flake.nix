@@ -137,6 +137,19 @@
 			];
 		};
 
+		# Dedicated EC2 box for Super Matrix (see modules/matrix.nix).
+		matrix = nixpkgs.lib.nixosSystem {
+			system = "x86_64-linux";
+			modules = [
+				./modules/matrix.nix
+				# Once github:canavan-a/super-matrix is pushed, add the
+				# `super-matrix.url = "github:canavan-a/super-matrix";` input
+				# and uncomment:
+				# ./modules/supermatrix.nix
+				# super-matrix.nixosModules.default
+			];
+		};
+
 	};
   };
 }
