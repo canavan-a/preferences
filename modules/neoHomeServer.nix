@@ -81,13 +81,24 @@ in
 
 	# open-lock web controller. mqtt-broker.nix already runs a local anonymous
 	# mosquitto on :1883, so don't let this module manage its own broker — just
-	# point at localhost. UI + lock API are served on :8080 (front it with the
-	# Cloudflare tunnel; auth stays at Cloudflare Access).
+	# point at localhost. The lock API and the Super Lock PWA (the app's web
+	# build) are served on :8080 (front it with the Cloudflare tunnel; auth
+	# stays at Cloudflare Access, which the browser signs into on its own).
 	services.open-lock = {
 		enable = true;
 		manageBroker = false;
 		mqttBroker = "127.0.0.1";
 		mqttPort = 1883;
 		mqttAnon = true;
+
+		web = {
+			enable = true;
+			# The origin the PWA calls, baked in at build time. Empty = the
+			# origin the page was loaded from, which is right while this
+			# service serves it (tunnel and LAN :8080 alike). Set the tunnel
+			# hostname, e.g. "https://lock.example.com", only if the page
+			# gets served from somewhere else.
+			apiOrigin = "";
+		};
 	};
 }
