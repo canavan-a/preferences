@@ -545,11 +545,11 @@
         "nixpkgs": "nixpkgs_5"
       },
       "locked": {
-        "lastModified": 1792778862,
-        "narHash": "sha256-e5YuRKB8/UhKBzWNLUXJqNWsKJY7qgWMWpTnGpbWSdM=",
+        "lastModified": 1792785816,
+        "narHash": "sha256-5uVny8CbTB9xXRa/0MPm07Ag24IpOIXXZPadADG5V70=",
         "owner": "canavan-a",
         "repo": "open-lock",
-        "rev": "1db5b8f3e94b0e3a2a36a34ae8051b1678fd379d",
+        "rev": "cf5067c90ca110a63aaff474c223a5d338a77c29",
         "type": "github"
       },
       "original": {
