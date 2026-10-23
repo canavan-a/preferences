@@ -93,12 +93,9 @@ in
 
 		web = {
 			enable = true;
-			# The origin the PWA calls, baked in at build time. Empty = the
-			# origin the page was loaded from, which is right while this
-			# service serves it (tunnel and LAN :8080 alike). Set the tunnel
-			# hostname, e.g. "https://lock.example.com", only if the page
-			# gets served from somewhere else.
-			apiOrigin = "";
+			# The origin the PWA calls, baked in at build time: the tunnel
+			# hostname. "" would mean whatever origin the page was loaded from.
+			apiOrigin = "https://aidan.house";
 		};
 	};
 }
