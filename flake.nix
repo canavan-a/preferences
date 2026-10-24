@@ -101,6 +101,7 @@
 				./modules/mqtt-broker.nix
 				horus-33.nixosModules.default
 				open-lock.nixosModules.default
+				super-matrix.nixosModules.relay
 				./modules/neoHomeServer.nix
 			];
 		};

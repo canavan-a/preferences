@@ -98,4 +98,14 @@ in
 			apiOrigin = "https://aidan.house";
 		};
 	};
+
+	# Super Matrix relay. It dials out to the server, so it needs no open
+	# ports; which services it forwards is set in the app. The token (smr_…,
+	# shown when the relay is added in the app) stays out of the store:
+	#   sudo install -Dm600 /dev/stdin /etc/supermatrix/relay-token
+	services.supermatrix-relay = {
+		enable = true;
+		serverUrl = "https://aidan.supermatrix.io";
+		tokenFile = "/etc/supermatrix/relay-token";
+	};
 }
