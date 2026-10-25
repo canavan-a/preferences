@@ -18,6 +18,17 @@
 		web.enable = true;
 	};
 
+	# Super Matrix relay, as on neo. It dials out to the server, so it needs
+	# no open ports; which services it forwards is set in the app. Add this
+	# box as its own relay in the app and put its token (smr_…) here, out of
+	# the store:
+	#   sudo install -Dm600 /dev/stdin /etc/supermatrix/relay-token
+	services.supermatrix-relay = {
+		enable = true;
+		serverUrl = "https://aidan.supermatrix.io";
+		tokenFile = "/etc/supermatrix/relay-token";
+	};
+
 	# services.superbadger.web's static web-client port (default listenAddr
 	# ":8081" — see super-badger's module.nix).
 	networking.firewall.allowedTCPPorts = [ 8081 ];

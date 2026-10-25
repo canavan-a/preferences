@@ -124,6 +124,7 @@
 
 				./modules/badger.nix
 				super-badger.nixosModules.default
+				super-matrix.nixosModules.relay
 			];
 		};
 
