@@ -69,6 +69,17 @@
 		# fcmCredentialsFile = "/etc/superatlas/fcm.json";
 	};
 
+	# Super Matrix relay, as on neo. It dials out to the server, so it needs
+	# no open ports; which services it forwards is set in the app. Add this
+	# box as its own relay in the app and put its token (smr_…) here, out of
+	# the store:
+	#   sudo install -Dm600 /dev/stdin /etc/supermatrix/relay-token
+	services.supermatrix-relay = {
+		enable = true;
+		serverUrl = "https://aidan.supermatrix.io";
+		tokenFile = "/etc/supermatrix/relay-token";
+	};
+
 	# Cloudflare tunnel: `sudo cf init <token>` once, then in the Cloudflare
 	# dashboard route chat.superbadger.io → http://localhost:8080 (and, if you
 	# want the browser client, another hostname → http://localhost:8081), and

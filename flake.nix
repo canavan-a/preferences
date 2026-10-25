@@ -136,6 +136,7 @@
 				./modules/superchat.nix
 				super-chat.nixosModules.default
 				super-atlas.nixosModules.default
+				super-matrix.nixosModules.relay
 			];
 		};
 
