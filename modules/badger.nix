@@ -1,7 +1,5 @@
 { config, pkgs, lib, ... }:
 {
-	imports = [ ./newt.nix ];
-
 	users.users."badger" = {
 		isNormalUser = true;
 		description = "badger";

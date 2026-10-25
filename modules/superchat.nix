@@ -1,7 +1,7 @@
 { config, pkgs, lib, ... }:
 {
-	# Pangolin tunnel client, same as the badger host: `sudo newtctl init
-	# <endpoint> <id> <secret>` once.
+	# Pangolin tunnel client: `sudo newtctl init <endpoint> <id> <secret>`
+	# once.
 	imports = [ ./newt.nix ];
 
 	# This is the old stealth-operation box (hardware-configuration-superchat.nix
