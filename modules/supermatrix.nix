@@ -16,5 +16,9 @@
 		# and rebuild.
 		acmeStaging = false;
 		rootPasswordFile = "/etc/supermatrix/root-password";
+		# SMTP for email-code sign-in, put on the box once:
+		#   sudo install -D -m 600 /dev/stdin /etc/supermatrix/env
+		# with SUPERMATRIX_SMTP_HOST/_PORT/_EMAIL/_APP_PASSWORD lines.
+		environmentFile = "/etc/supermatrix/env";
 	};
 }
