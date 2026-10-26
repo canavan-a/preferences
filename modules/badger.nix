@@ -27,6 +27,25 @@
 		tokenFile = "/etc/supermatrix/relay-token";
 	};
 
+	# Run the relay outside the Mullvad tunnel (Mullvad's split tunneling,
+	# as cloudflared does below): through the tunnel every connection to it
+	# took a detour via the Mullvad exit and was slow. Excluded processes
+	# still get out with lockdown mode on.
+	#
+	# The relay runs as an unprivileged DynamicUser, so it needs the setuid
+	# wrapper (the plain store binary can't move a non-root process into
+	# Mullvad's net_cls cgroup), NoNewPrivileges off (it blocks setuid) and
+	# a writable /sys/fs/cgroup (ProtectControlGroups makes it read-only).
+	systemd.services.supermatrix-relay = {
+		after = [ "mullvad-daemon.service" ];
+		wants = [ "mullvad-daemon.service" ];
+		serviceConfig = {
+			ExecStart = lib.mkForce "/run/wrappers/bin/mullvad-exclude /var/lib/supermatrix-relay/bin/supermatrix-relay";
+			NoNewPrivileges = lib.mkForce false;
+			ProtectControlGroups = lib.mkForce false;
+		};
+	};
+
 	# services.superbadger.web's static web-client port (default listenAddr
 	# ":8081" — see super-badger's module.nix).
 	networking.firewall.allowedTCPPorts = [ 8081 ];
