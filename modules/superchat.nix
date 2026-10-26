@@ -52,10 +52,14 @@
 		# Loopback only, next to Super Chat's 8080/8081; cloudflared publishes
 		# it (see below). The web client is served from the same port, at /.
 		listenAddr = "127.0.0.1:8090";
-		publicOrigin = "https://atlas.superbadger.io";
-		# Fill in with the release key's SHA-256 so invite links open the app
-		# directly: super-atlas/release/gen-keystore.sh prints it.
-		androidCertSha256 = [ ];
+		publicOrigin = "https://superatlas.lunargen.com";
+		# Signing key SHA-256s, so invite links open the app directly: the
+		# release key (sideload builds; super-atlas/release/gen-keystore.sh
+		# prints it), and once the first bundle is uploaded, Play's app signing
+		# key (Play Console → App integrity → App signing).
+		androidCertSha256 = [
+			"C7:B6:A9:20:2F:A5:17:1F:6D:5D:DE:7A:0F:35:BD:22:3B:90:1B:62:D7:7A:59:75:2D:EB:A8:F4:AE:FD:B5:AC"
+		];
 		web.enable = true;
 		# The Gmail account sign-in codes are sent from, put on the box once:
 		#   sudo install -D -m 600 -o root /dev/stdin /etc/superatlas/env <<EOF
@@ -64,9 +68,11 @@
 		#   EOF
 		# The service won't start until this file exists.
 		environmentFile = "/etc/superatlas/env";
-		# Google Play build notifications (Firebase service account key), once
-		# there's a Firebase project for super-atlas:
-		# fcmCredentialsFile = "/etc/superatlas/fcm.json";
+		# Google Play build notifications (Firebase service account key),
+		# put on the box once with
+		# `sudo install -D -m 600 -o root <key>.json /etc/superatlas/fcm.json`
+		# (the service won't start until it exists).
+		fcmCredentialsFile = "/etc/superatlas/fcm.json";
 	};
 
 	# Super Matrix relay, as on neo. It dials out to the server, so it needs
@@ -83,7 +89,7 @@
 	# Cloudflare tunnel: `sudo cf init <token>` once, then in the Cloudflare
 	# dashboard route chat.superbadger.io → http://localhost:8080 (and, if you
 	# want the browser client, another hostname → http://localhost:8081), and
-	# atlas.superbadger.io → http://localhost:8090.
+	# superatlas.lunargen.com → http://localhost:8090.
 	#
 	# common.nix enables Mullvad on every host; if it's ever connected it
 	# would cut cloudflared off from Cloudflare's edge, so run cloudflared
