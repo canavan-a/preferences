@@ -64,9 +64,28 @@
 				home-manager.nixosModules.home-manager
 				stylix.nixosModules.stylix
 				open-lock.nixosModules.default
-			];	
+				# The `supermatrix` SSH client (ProxyCommand / forward). Add
+				# deployments to sshHosts to get ssh_config entries for them.
+				super-matrix.nixosModules.client
+				{
+					programs.supermatrix.enable = true;
+				}
+				# Super Matrix relay. It dials out to the server, so it needs no
+				# open ports; which services it forwards is set in the app. The
+				# token (smr_…, shown when the relay is added in the app) stays
+				# out of the store:
+				#   sudo install -Dm600 /dev/stdin /etc/supermatrix/relay-token
+				super-matrix.nixosModules.relay
+				{
+					services.supermatrix-relay = {
+						enable = true;
+						serverUrl = "https://aidan.supermatrix.io";
+						tokenFile = "/etc/supermatrix/relay-token";
+					};
+				}
+			];
 		};
-		server = nixpkgs.lib.nixosSystem {
+		server =nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
 			modules = serverBase ++[
 				./hardware-configuration-M70s.nix
@@ -113,6 +132,19 @@
 				./cloudflare/cf.nix
 				./modules/wrx80-local-ai.nix
 				./modules/nixstrata.nix
+				# Super Matrix relay. It dials out to the server, so it needs no
+				# open ports; which services it forwards is set in the app. The
+				# token (smr_…, shown when the relay is added in the app) stays
+				# out of the store:
+				#   sudo install -Dm600 /dev/stdin /etc/supermatrix/relay-token
+				super-matrix.nixosModules.relay
+				{
+					services.supermatrix-relay = {
+						enable = true;
+						serverUrl = "https://aidan.supermatrix.io";
+						tokenFile = "/etc/supermatrix/relay-token";
+					};
+				}
 			];
 		};
 
