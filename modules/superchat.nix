@@ -49,8 +49,9 @@
 
 	services.superatlas = {
 		enable = true;
-		# Loopback only, next to Super Chat's 8080/8081; cloudflared publishes
-		# it (see below). The web client is served from the same port, at /.
+		# Loopback only, next to Super Chat's 8080/8081; the Super Matrix
+		# relay publishes it as superatlas.lunargen.com. The web client is
+		# served from the same port, at /.
 		listenAddr = "127.0.0.1:8090";
 		publicOrigin = "https://superatlas.lunargen.com";
 		# Signing key SHA-256s, so invite links open the app directly: the
@@ -88,8 +89,9 @@
 
 	# Cloudflare tunnel: `sudo cf init <token>` once, then in the Cloudflare
 	# dashboard route chat.superbadger.io → http://localhost:8080 (and, if you
-	# want the browser client, another hostname → http://localhost:8081), and
-	# superatlas.lunargen.com → http://localhost:8090.
+	# want the browser client, another hostname → http://localhost:8081).
+	# Super Atlas (superatlas.lunargen.com → 127.0.0.1:8090) goes through the
+	# Super Matrix relay below instead.
 	#
 	# common.nix enables Mullvad on every host; if it's ever connected it
 	# would cut cloudflared off from Cloudflare's edge, so run cloudflared
