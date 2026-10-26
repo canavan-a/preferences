@@ -32,17 +32,22 @@
 	# took a detour via the Mullvad exit and was slow. Excluded processes
 	# still get out with lockdown mode on.
 	#
-	# The relay runs as an unprivileged DynamicUser, so it needs the setuid
-	# wrapper (the plain store binary can't move a non-root process into
-	# Mullvad's net_cls cgroup), NoNewPrivileges off (it blocks setuid) and
-	# a writable /sys/fs/cgroup (ProtectControlGroups makes it read-only).
+	# Joining Mullvad's net_cls cgroup takes root. The setuid wrapper can't
+	# do it here: DynamicUser forces RestrictSUIDSGID, a seccomp filter, and
+	# systemd sets NoNewPrivileges to apply that to a non-root service. So
+	# "!" starts the command as root (the rest of the sandbox still applies),
+	# mullvad-exclude joins the cgroup, and setpriv drops to the dynamic user
+	# before the relay runs. ProtectControlGroups and ProtectKernelTunables
+	# would both leave /sys/fs/cgroup read-only.
 	systemd.services.supermatrix-relay = {
 		after = [ "mullvad-daemon.service" ];
 		wants = [ "mullvad-daemon.service" ];
 		serviceConfig = {
-			ExecStart = lib.mkForce "/run/wrappers/bin/mullvad-exclude /var/lib/supermatrix-relay/bin/supermatrix-relay";
-			NoNewPrivileges = lib.mkForce false;
+			ExecStart = lib.mkForce "!${pkgs.mullvad}/bin/mullvad-exclude ${pkgs.util-linux}/bin/setpriv --reuid=supermatrix-relay --regid=supermatrix-relay --clear-groups /var/lib/supermatrix-relay/bin/supermatrix-relay";
+			# For setpriv's switch to the relay's user; dropped as it switches.
+			CapabilityBoundingSet = lib.mkForce [ "CAP_SETUID" "CAP_SETGID" ];
 			ProtectControlGroups = lib.mkForce false;
+			ProtectKernelTunables = lib.mkForce false;
 		};
 	};
 
