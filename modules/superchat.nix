@@ -74,6 +74,12 @@
 		# `sudo install -D -m 600 -o root <key>.json /etc/superatlas/fcm.json`
 		# (the service won't start until it exists).
 		fcmCredentialsFile = "/etc/superatlas/fcm.json";
+		# App store review sign-in: this email always takes this code, isn't
+		# emailed, and needs no `superatlas-admin allow`.
+		reviewAccount = {
+			email = "tester@lunargen.com";
+			code = "222222";
+		};
 	};
 
 	# Super Matrix relay, as on neo. It dials out to the server, so it needs
