@@ -25,7 +25,7 @@
 
 	services.superchat = {
 		enable = true;
-		# Loopback only; cloudflared publishes it (see below).
+		# Loopback only.
 		listenAddr = "127.0.0.1:8080";
 		publicOrigin = "https://chat.superbadger.io";
 		# Play's app signing key SHA-256 (Play Console → App integrity → App
@@ -85,26 +85,5 @@
 		enable = true;
 		serverUrl = "https://aidan.supermatrix.io";
 		tokenFile = "/etc/supermatrix/relay-token";
-	};
-
-	# Cloudflare tunnel: `sudo cf init <token>` once, then in the Cloudflare
-	# dashboard route chat.superbadger.io → http://localhost:8080 (and, if you
-	# want the browser client, another hostname → http://localhost:8081).
-	# Super Atlas (superatlas.lunargen.com → 127.0.0.1:8090) goes through the
-	# Super Matrix relay below instead.
-	#
-	# common.nix enables Mullvad on every host; if it's ever connected it
-	# would cut cloudflared off from Cloudflare's edge, so run cloudflared
-	# outside the Mullvad tunnel the same way the badger host does.
-	systemd.services.cloudflared-tunnel = {
-		after = [ "mullvad-daemon.service" ];
-		wants = [ "mullvad-daemon.service" ];
-		serviceConfig.ExecStart = lib.mkForce (
-			pkgs.writeShellScript "cloudflared-tunnel-run-superchat" ''
-				set -euo pipefail
-				token="$(cat /etc/cloudflared/token)"
-				exec ${pkgs.mullvad}/bin/mullvad-exclude ${pkgs.cloudflared}/bin/cloudflared tunnel --protocol http2 run --token "$token"
-			''
-		);
 	};
 }

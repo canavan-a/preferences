@@ -60,7 +60,6 @@
 				./modules/mqtt-broker.nix
 				./modules/5gbandforce.nix
 				./modules/claude-code-router.nix
-				./cloudflare/cf.nix
 				home-manager.nixosModules.home-manager
 				stylix.nixosModules.stylix
 				open-lock.nixosModules.default
@@ -116,7 +115,6 @@
 			system = "x86_64-linux";
 			modules = serverBase ++ [
 				./hardware-configuration-neo.nix
-				./cloudflare/cf.nix
 				./modules/mqtt-broker.nix
 				horus-33.nixosModules.default
 				open-lock.nixosModules.default
@@ -129,7 +127,6 @@
 			system = "x86_64-linux";
 			modules = serverBase ++ [
 				./hardware-configuration-wrx.nix
-				./cloudflare/cf.nix
 				./modules/wrx80-local-ai.nix
 				./modules/nixstrata.nix
 				# Super Matrix relay. It dials out to the server, so it needs no
@@ -152,7 +149,6 @@
 			system = "x86_64-linux";
 			modules = serverBase ++ [
 				./hardware-configuration-badger.nix
-				./cloudflare/cf.nix
 
 				./modules/badger.nix
 				super-badger.nixosModules.default
@@ -165,7 +161,6 @@
 			system = "x86_64-linux";
 			modules = serverBase ++ [
 				./hardware-configuration-superchat.nix
-				./cloudflare/cf.nix
 				./modules/superchat.nix
 				super-chat.nixosModules.default
 				super-atlas.nixosModules.default

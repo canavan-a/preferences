@@ -27,10 +27,10 @@
 		tokenFile = "/etc/supermatrix/relay-token";
 	};
 
-	# Run the relay outside the Mullvad tunnel (Mullvad's split tunneling,
-	# as cloudflared does below): through the tunnel every connection to it
-	# took a detour via the Mullvad exit and was slow. Excluded processes
-	# still get out with lockdown mode on.
+	# Run the relay outside the Mullvad tunnel (Mullvad's split tunneling):
+	# through the tunnel every connection to it took a detour via the
+	# Mullvad exit and was slow. Excluded processes still get out with
+	# lockdown mode on.
 	#
 	# Joining Mullvad's net_cls cgroup takes root. The setuid wrapper can't
 	# do it here: DynamicUser forces RestrictSUIDSGID, a seccomp filter, and
@@ -125,34 +125,5 @@
 				};
 			};
 		};
-	};
-
-	# This host's Wi-Fi network hands out IPv6 ULA addresses with no default
-	# route (IP6.GATEWAY is empty, no ::/0 route) - likely internal mesh
-	# backhaul addressing, not real IPv6 internet access. cloudflared's QUIC
-	# transport still tries IPv6 as part of its dual-stack dial and fails
-	# with "sendmsg: operation not permitted" instead of falling back
-	# cleanly, so force it to IPv4 only. Scoped to this host (not
-	# cloudflare/cf.nix) since other hosts' tunnels work fine as-is.
-	#
-	# This host also runs Mullvad, which routes all traffic through its
-	# tunnel and severs cloudflared's connection to Cloudflare's edge when
-	# connected. mullvad-exclude uses Mullvad's split-tunneling support
-	# (cgroup net_cls) to route cloudflared's traffic outside the Mullvad
-	# tunnel, so both can run at once.
-	#
-	# --protocol http2 uses TCP instead of QUIC (UDP 7844), which was being
-	# dropped during firewall/Mullvad transitions at boot ("sendmsg: operation
-	# not permitted"); TCP survives those and reconnects cleanly.
-	systemd.services.cloudflared-tunnel = {
-		after = [ "mullvad-daemon.service" ];
-		wants = [ "mullvad-daemon.service" ];
-		serviceConfig.ExecStart = lib.mkForce (
-			pkgs.writeShellScript "cloudflared-tunnel-run-badger" ''
-				set -euo pipefail
-				token="$(cat /etc/cloudflared/token)"
-				exec ${pkgs.mullvad}/bin/mullvad-exclude ${pkgs.cloudflared}/bin/cloudflared tunnel --edge-ip-version 4 --protocol http2 run --token "$token"
-			''
-		);
 	};
 }
