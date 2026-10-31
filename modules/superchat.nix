@@ -89,14 +89,15 @@
 		listenAddr = "127.0.0.1:8100";
 		publicOrigin = "https://pages.superbadger.io";
 		web.enable = true;
-		# Invite-only for now: make codes with
-		# `superpages-admin codes create --uses 5 --label "..."`. Someone a
-		# page is shared with by email can still sign up without one.
-		requireRegistrationCode = true;
-		# The Gmail account sign-in codes are sent from, put on the box once:
+		# The Zoho account sign-in codes are sent from, and the pre-release
+		# invite code a new account needs before one is emailed (existing
+		# accounts don't; remove the line to open sign-ups). Put on the box
+		# once:
 		#   sudo install -D -m 600 -o root /dev/stdin /etc/superpages/env <<EOF
+		#   SUPERPAGES_SMTP_HOST=smtp.zoho.com
 		#   SUPERPAGES_SMTP_EMAIL=...
 		#   SUPERPAGES_SMTP_APP_PASSWORD=...
+		#   SUPERPAGES_PRERELEASE_CODE=...
 		#   EOF
 		# The service won't start until this file exists.
 		environmentFile = "/etc/superpages/env";
