@@ -1,9 +1,5 @@
 { config, pkgs, lib, ... }:
 {
-	# Pangolin tunnel client: `sudo newtctl init <endpoint> <id> <secret>`
-	# once.
-	imports = [ ./newt.nix ];
-
 	# This is the old stealth-operation box (hardware-configuration-superchat.nix
 	# is its generated hardware config). It was installed with legacy BIOS GRUB
 	# on the NVMe disk and has no EFI partition, while common.nix assumes
@@ -80,6 +76,33 @@
 			email = "tester@lunargen.com";
 			code = "222222";
 		};
+	};
+
+	services.superpages = {
+		enable = true;
+		# Loopback only, next to Super Chat's 8080/8081 and Super Atlas's
+		# 8090. The web app is served from the same port, at /, with the API
+		# under /v1. Published as pages.superbadger.io by the Super Matrix
+		# relay below (add it as a service in the app). The edge passes the
+		# client's IP in X-Forwarded-For, which trustProxy (default on) uses
+		# for the email rate limits.
+		listenAddr = "127.0.0.1:8100";
+		publicOrigin = "https://pages.superbadger.io";
+		web.enable = true;
+		# Invite-only for now: make codes with
+		# `superpages-admin codes create --uses 5 --label "..."`. Someone a
+		# page is shared with by email can still sign up without one.
+		requireRegistrationCode = true;
+		# The Gmail account sign-in codes are sent from, put on the box once:
+		#   sudo install -D -m 600 -o root /dev/stdin /etc/superpages/env <<EOF
+		#   SUPERPAGES_SMTP_EMAIL=...
+		#   SUPERPAGES_SMTP_APP_PASSWORD=...
+		#   EOF
+		# The service won't start until this file exists.
+		environmentFile = "/etc/superpages/env";
+		# Once super-pages/release/gen-keystore.sh has made the release key,
+		# add its SHA-256 here so share links open the sideloaded app.
+		androidCertSha256 = [ ];
 	};
 
 	# Super Matrix relay, as on neo. It dials out to the server, so it needs
