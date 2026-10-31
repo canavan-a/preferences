@@ -746,11 +746,11 @@
         "nixpkgs": "nixpkgs_11"
       },
       "locked": {
-        "lastModified": 1793486357,
-        "narHash": "sha256-4PfiO1gTIweKo1pA9NfRz/5Mp/IY/RYg4rCQ17LkwlI=",
+        "lastModified": 1793490005,
+        "narHash": "sha256-vu+FyplUHZPx3ilZJFu78JeyA0WqlMAr2qsb+glqlPw=",
         "owner": "canavan-a",
         "repo": "super-pages",
-        "rev": "3eec716e80d7da6b64549b85eb0f165de193acc1",
+        "rev": "3a18a269646786a9db800ca0e5c4d72fb5d796be",
         "type": "github"
       },
       "original": {
