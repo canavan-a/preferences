@@ -9,7 +9,7 @@
 , gpuTargets ? [ "gfx1100" ]
 }:
 let
-	version = "0.1.39";
+	version = "0.1.43.1";
 
 	# The llama.cpp commit Strata's CMakeLists.txt pins (FetchContent). The
 	# sandbox has no network, so it is handed in through STRATA_GGML_DIR; the
@@ -33,8 +33,8 @@ stdenv.mkDerivation {
 	src = fetchFromGitHub {
 		owner = "Niko1221";
 		repo = "Strata";
-		rev = "6f32ec070f23ced9f50e704d854d775da52591ab";
-		hash = "sha256-9jqmV+AbGKiOqW1DvKjqBLVXmJCI9o6WI85QoHj5vBI=";
+		rev = "a0116b2782a5b82622358c04a06496485d12b2d6";
+		hash = "sha256-ouJseBgkuS0WxgHgHw8vxuNNqR/B3W5yjbjfBzkBpqA=";
 	};
 
 	nativeBuildInputs = [ cmake ninja python3 ];
