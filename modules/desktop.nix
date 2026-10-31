@@ -35,7 +35,12 @@ in
 		kitty
 		hyprcursor
 		adwaita-icon-theme
-		brave
+		# VA-API encode on the 780M fails (vaMapBuffer) and aborts the GPU process
+		# mid-call (Teams video jumps/lags). Keep HW decode, drop HW encode. The full
+		# disable list is repeated in case Chromium keeps only the last switch.
+		(brave.override {
+			commandLineArgs = "--disable-features=AcceleratedVideoEncoder,OutdatedBuildDetector,UseChromeOSDirectVideoDecoder";
+		})
 		terraform
 		pulsemixer
 		hyprpaper
@@ -548,6 +553,7 @@ in
 				"dbus-update-activation-environment --systemd WAYLAND_DISPLAY XDG_CURRENT_DESKTOP"
 				"hyprpaper"
 				"nm-applet --indicator"
+				"blueman-applet"
 				"hypridle > /tmp/hypridle.log 2>&1"
 				"hyprsunset"
 				"mako"
