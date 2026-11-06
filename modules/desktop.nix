@@ -71,7 +71,6 @@ in
 		inputs.spinnyfetch.packages.x86_64-linux.default
 		goose
 		ungoogled-chromium
-		unstable.brave-origin
 		stripe-cli
 	]
 	# The super-badger terminal client (`superbadger`). Guarded so a flake.lock
@@ -194,6 +193,18 @@ in
 		};
 			
 	services.blueman.enable = true;
+
+	# MT7921 BT loses the MX Anywhere bond after s2idle resume; restart bluetoothd on wake.
+	systemd.services.bluetooth-resume-restart = lib.mkIf config.hardware.bluetooth.enable {
+		description = "Restart Bluetooth after resume";
+		after = [ "suspend.target" "hibernate.target" "hybrid-sleep.target" "suspend-then-hibernate.target" ];
+		wantedBy = [ "suspend.target" "hibernate.target" "hybrid-sleep.target" "suspend-then-hibernate.target" ];
+		serviceConfig.Type = "oneshot";
+		script = ''
+			sleep 2
+			${pkgs.systemd}/bin/systemctl restart bluetooth.service
+		'';
+	};
 	# services.logind.lidSwitch = "sudo systemctl suspend";
 	security.sudo.extraRules = [{
 	  commands = [{
@@ -562,7 +573,6 @@ in
 					"ALT_R, T, exec, kitty"
 					"ALT_R SHIFT, T, exec, kitty-cwd"
 					"ALT_R, B, exec, brave"
-					"ALT_R SHIFT, B, exec, brave-origin"
 					"ALT_R, C, exec, grimblast copysave area ~/screenshots/$(date +%Y%m%d_%H%M%S).png"
 					"ALT_R SHIFT, C, exec, screenshot"
 					"ALT_R SHIFT, Q, killactive,"
