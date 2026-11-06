@@ -141,7 +141,7 @@ in
 
 			programs.opencode = {
 				enable = true;
-				package = unstable.opencode;
+				package = pkgs.opencode;
 				settings = {
 					permission = {
 						edit = "ask";
