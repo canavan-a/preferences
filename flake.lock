@@ -727,11 +727,11 @@
         "nixpkgs": "nixpkgs_10"
       },
       "locked": {
-        "lastModified": 1793841266,
-        "narHash": "sha256-+4KzccU0XQrmP/xp5PyLc0tY6tmQUszKUYQwUriZFHQ=",
+        "lastModified": 1793938114,
+        "narHash": "sha256-YEYYKPEWrM3Z1BHXgpkHaenYSad2nfSRVal1b4Wovu4=",
         "owner": "canavan-a",
         "repo": "super-matrix",
-        "rev": "415203fa1224abd78cfa9a986f01ec35ad654cff",
+        "rev": "0a4f9aa9b00a47f3d552f532ca788af3f45658eb",
         "type": "github"
       },
       "original": {
