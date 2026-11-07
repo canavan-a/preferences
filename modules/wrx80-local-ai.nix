@@ -1782,7 +1782,16 @@ in
 		description = "Super Badger Station Standard API adapter";
 		wantedBy = [ "multi-user.target" ];
 		serviceConfig = {
+			# Skip (not fail) while any Strata server runs: nixstrata-badger serves the port then, and
+			# starting this one - as a rebuild does for multi-user.target - would stop it through their
+			# conflict, dropping every station's live numbers. nixstrata-badger's OnSuccess starts this
+			# again once the last Strata server stops.
+			ExecCondition = pkgs.writeShellScript "nixllm-badger-api-condition" ''
+				! ${pkgs.systemd}/bin/systemctl is-active --quiet nixstrata.service nixstrata-a.service nixstrata-b.service
+			'';
 			ExecStart = "${pkgs.socat}/bin/socat TCP-LISTEN:${badgerAdapterPort},fork,reuseaddr,bind=127.0.0.1 EXEC:${badgerHttp}";
+			# socat exits 143 on SIGTERM (stopped by nixstrata-badger's conflict): a clean stop, not a failure
+			SuccessExitStatus = [ 143 ];
 			Restart = "on-failure";
 			RestartSec = 2;
 			User = "llm";
