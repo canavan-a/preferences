@@ -227,9 +227,38 @@ let
 		# --device/--split-mode is backend-agnostic (unlike ROCR/HIP_VISIBLE_DEVICES,
 		# which only the ROCm backend honours - the Vulkan backend ignores them
 		# and silently layer-splits across every visible GPU instead of pinning).
+		# GPU N is the card HIP numbers N (the KFD topology's GPU nodes in order -
+		# what ROCm and Strata use), so a split's llama.cpp and Strata never share
+		# a card. Vulkan numbers the cards differently (on wrx: PCI bus order,
+		# the reverse of HIP's), so find the Vulkan device on the same PCI bus.
 		case "$NIXLLM_BACKEND" in
 			rocm)   DEVICE_ARGS="--device ROCm${toString gpuIndex} --split-mode none" ;;
-			vulkan) DEVICE_ARGS="--device Vulkan${toString gpuIndex} --split-mode none" ;;
+			vulkan)
+				export PATH="${lib.makeBinPath (with pkgs; [ coreutils gawk gnugrep vulkan-tools ])}:$PATH"
+				VK_INDEX=""
+				hip=0
+				for node in $(ls /sys/class/kfd/kfd/topology/nodes | sort -n); do
+					props="/sys/class/kfd/kfd/topology/nodes/$node/properties"
+					gfx="$(awk '$1=="gfx_target_version"{print $2}' "$props" 2>/dev/null || true)"
+					simd="$(awk '$1=="simd_count"{print $2}' "$props" 2>/dev/null || true)"
+					[ "''${gfx:-0}" != 0 ] && [ "''${simd:-0}" != 0 ] || continue
+					if [ "$hip" = "${toString gpuIndex}" ]; then
+						minor="$(awk '$1=="drm_render_minor"{print $2}' "$props")"
+						pci="$(basename "$(readlink -f "/sys/class/drm/renderD$minor/device")")"   # 0000:43:00.0
+						bus=$(( 16#$(echo "$pci" | cut -d: -f2) ))                                     # 67
+						VK_INDEX="$(vulkaninfo 2>/dev/null \
+							| awk '/pciBus *=/{print $3}' | grep -nx "$bus" | head -n1 | cut -d: -f1 || true)"
+						[ -n "$VK_INDEX" ] && VK_INDEX=$(( VK_INDEX - 1 ))
+						echo "nixllm: GPU ${toString gpuIndex} (HIP) = $pci = Vulkan''${VK_INDEX:-?}"
+						break
+					fi
+					hip=$(( hip + 1 ))
+				done
+				if [ -z "$VK_INDEX" ]; then
+					echo "nixllm: could not map GPU ${toString gpuIndex} to a Vulkan device - using Vulkan${toString gpuIndex}" >&2
+					VK_INDEX="${toString gpuIndex}"
+				fi
+				DEVICE_ARGS="--device Vulkan$VK_INDEX --split-mode none" ;;
 		esac
 		'' else ''
 		# layer-split order across GPUs; "nixllm swap" flips this so the
@@ -1338,6 +1367,7 @@ EOF4
 								*) echo "usage: nixllm split [start] [a|b]   (a|b: the card llama.cpp runs on)" >&2; exit 1 ;;
 							esac
 							[ -s "$MODEL_F" ] || { echo "nixllm: no active model - run 'nixllm load <path.gguf>' or plain 'nixllm split'" >&2; exit 1; }
+							[ -f "$(cat "$MODEL_F")" ] || { echo "nixllm: active model $(cat "$MODEL_F") is not on disk - run 'nixllm models', then 'nixllm load <path.gguf>' or plain 'nixllm split'" >&2; exit 1; }
 							grep -q '^STRATA_MODEL=..' "$STRATA_CONFIG_F" 2>/dev/null \
 								|| { echo "nixllm: no Strata model selected - run 'nixstrata use' first" >&2; exit 1; }
 							lport="$(split_port "$llama")"; sport="$(split_port "$strata")"
