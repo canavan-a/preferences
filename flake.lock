@@ -689,11 +689,11 @@
         "nixpkgs": "nixpkgs_8"
       },
       "locked": {
-        "lastModified": 1793478549,
-        "narHash": "sha256-/8z688x44Vk4UuxGqcpxFhAhDgx6rR+I/XGPjPVG/JM=",
+        "lastModified": 1794035668,
+        "narHash": "sha256-BLbxZrIG0/pm4BgDP002U8dXwktLAkk/bYfXHreT6xo=",
         "owner": "canavan-a",
         "repo": "super-badger",
-        "rev": "43e96be5278945df3db626fe0599cdf931f228f5",
+        "rev": "50a558a3565cd106bcd409a6adaaa2c202843c31",
         "type": "github"
       },
       "original": {
