@@ -226,15 +226,72 @@ def llama_metrics(sport):
     return out or None
 
 
+def llama_slots(sport):
+    """A llama-server's GET /slots (one entry per slot, with the running request's decoded-token count), or None."""
+    req = urllib.request.Request(f"http://127.0.0.1:{sport}/slots")
+    try:
+        with open(nixllm_apikey, encoding="utf-8") as f:
+            key = f.read().strip()
+        if key:
+            req.add_header("Authorization", f"Bearer {key}")
+    except OSError:
+        pass
+    try:
+        with urllib.request.urlopen(req, timeout=2) as r:
+            s = json.load(r)
+        return s if isinstance(s, list) else None
+    except Exception:
+        return None
+
+
+# llama.cpp's predicted_tokens_seconds only counts a request once it ends, and every /metrics read resets it, so a
+# poll mid-answer reads 0. The live speed comes from /slots instead: the running request's decoded-token count,
+# differenced between two polls. Per port: the last sample, and the last speed seen (shown while idle, as Strata does).
+llama_lock = threading.Lock()
+llama_prev = {}          # port -> (monotonic time, task id, n_decoded)
+llama_last_tps = {}      # port -> tokens/s of the last measured generation
+
+
+def llama_live_tps(sport, slots):
+    """(generating, tokens/s or None) for the busy slot, from the change in its n_decoded since the last call."""
+    busy = [s for s in (slots or []) if s.get("is_processing")]
+    now = time.monotonic()
+    with llama_lock:
+        if not busy:
+            llama_prev.pop(sport, None)
+            return False, None
+        s = busy[0]
+        nt = s.get("next_token")
+        nt = nt[0] if isinstance(nt, list) and nt else nt
+        n = (nt or {}).get("n_decoded")
+        task = s.get("id_task", s.get("id"))
+        prev, tps = llama_prev.get(sport), None
+        if isinstance(n, (int, float)):
+            if prev and prev[1] == task and n >= prev[2] and now > prev[0]:
+                tps = (n - prev[2]) / (now - prev[0])
+                if tps > 0:
+                    llama_last_tps[sport] = tps
+            llama_prev[sport] = (now, task, n)
+        return True, tps
+
+
 def down_stats(st, gpus, mem):
     """A mapped station no Strata server serves: a llama-server's numbers when one answers on its port (nixllm
     split), else down (its nixllm server is stopped while Strata runs)."""
     m = llama_metrics(st["port"])
     if m is not None:
-        generating = (m.get("requests_processing") or 0) > 0
+        generating, live = llama_live_tps(st["port"], llama_slots(st["port"]))
+        generating = generating or (m.get("requests_processing") or 0) > 0
+        finished = m.get("predicted_tokens_seconds")
+        if finished:
+            with llama_lock:
+                llama_last_tps[st["port"]] = finished
+        last = llama_last_tps.get(st["port"])
         return {"up": 1, "loaded": 1, "generating": 1 if generating else 0,
                 "queued": m.get("requests_deferred"),
-                "tokens_per_sec": r1(m.get("predicted_tokens_seconds")) or 0,
+                # live speed while generating, else the last generation's (as for a Strata station)
+                "tokens_per_sec": r1(live if live is not None else last) or 0,
+                "last_decode_tok_s": r1(last),
                 "last_prompt_tok_s": r1(m.get("prompt_tokens_seconds")),
                 "prompt_tokens_total": m.get("prompt_tokens_total"),
                 "output_tokens_total": m.get("tokens_predicted_total"),
