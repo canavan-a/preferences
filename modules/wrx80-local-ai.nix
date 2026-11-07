@@ -679,8 +679,12 @@ ART
 							;;
 						think)
 							cfg_set NIXLLM_REASONING "full"
-							cfg_set NIXLLM_SAMPLE_ARGS "--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0"
-							echo "nixllm: preset think (reasoning on, Qwen3 thinking sampling)"
+							# Qwen's thinking sampling at temp 1.0 plus its anti-loop presence penalty (quantized and
+							# abliterated models spin in thought loops without it). --repeat-last-n widens the penalty
+							# window from llama.cpp's 64 tokens so paragraph-sized loops are caught, without reaching
+							# back over the whole context (that would penalize every identifier already read).
+							cfg_set NIXLLM_SAMPLE_ARGS "--temp 1.0 --top-p 0.95 --top-k 20 --min-p 0 --presence-penalty 1.5 --repeat-last-n 512"
+							echo "nixllm: preset think (reasoning on, Qwen thinking sampling + anti-loop penalty)"
 							;;
 						clear)
 							cfg_unset NIXLLM_REASONING
