@@ -143,6 +143,25 @@ out["reasoning_effort"] = cfg_in.get("STRATA_EFFORT") or "high"
 # comes back empty and the agent stops (hands back to the user mid-task). This closes the thinking once and lets
 # the model go on to its answer or its next tool call instead.
 out["reasoning_close_retry"] = True
+# The experimental speed projection (docs/DETAILS.md, "Experimental speed projection"): a model whose catalog entry
+# loads its control vector (gsq-iq3_s) runs every request with it - the refusal-direction projection, so the model
+# doesn't decline requests. On by default once loaded; made explicit here, and an "off" saved in Strata's web Chat
+# settings ("Use for other apps too", strata*.shared-settings.json) - which outranks this default for every app - is
+# cleared at each start. A request's own "experimental_speed_projection": false still turns it off for that request.
+if "--control-vector-scaled" in args:
+    out["sampling"] = {**out["sampling"], "experimental_speed_projection": True}
+    shared_f = state / f"strata{suffix}.shared-settings.json"
+    try:
+        shared = json.loads(shared_f.read_text())
+    except (OSError, ValueError):
+        shared = None
+    if isinstance(shared, dict) and shared.get("experimental_speed_projection") is False:
+        del shared["experimental_speed_projection"]
+        tmp_s = shared_f.with_name(shared_f.name + ".tmp")
+        tmp_s.write_text(json.dumps(shared, indent=1))
+        tmp_s.replace(shared_f)
+        print(f"nixstrata{suffix}: cleared experimental_speed_projection=false from {shared_f.name} "
+              "(the projection stays on for every app)")
 # A request whose max_tokens doesn't fit the room left in the context gets its output cap shortened to that room
 # instead of a 400 - agent clients (opencode) send the model's full output limit every step, so a long session
 # would otherwise fail outright near the end of the context, and so would the compaction meant to rescue it.
