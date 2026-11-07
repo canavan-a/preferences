@@ -194,15 +194,37 @@ in
 			
 	services.blueman.enable = true;
 
-	# MT7921 BT loses the MX Anywhere bond after s2idle resume; restart bluetoothd on wake.
+	# MT7921 BT goes deaf to bonded devices after s2idle resume; reset the BT stack on wake.
 	systemd.services.bluetooth-resume-restart = lib.mkIf config.hardware.bluetooth.enable {
 		description = "Restart Bluetooth after resume";
 		after = [ "suspend.target" "hibernate.target" "hybrid-sleep.target" "suspend-then-hibernate.target" ];
 		wantedBy = [ "suspend.target" "hibernate.target" "hybrid-sleep.target" "suspend-then-hibernate.target" ];
 		serviceConfig.Type = "oneshot";
+		path = [ pkgs.util-linux config.hardware.bluetooth.package pkgs.gnugrep pkgs.gawk ];
 		script = ''
 			sleep 2
-			${pkgs.systemd}/bin/systemctl restart bluetooth.service
+			# Light touch: no bluetoothd restart / driver reload (those raced with blueman and
+			# didn't help). Just make sure the adapter is on, then nudge input devices.
+			# Make sure the adapter didn't come back powered off / rfkill soft-blocked.
+			for i in $(seq 1 20); do
+				sleep 1
+				rfkill unblock bluetooth || true
+				bluetoothctl power on >/dev/null 2>&1 || true
+				if bluetoothctl show | grep -q 'Powered: yes' && ! rfkill list bluetooth | grep -q 'Soft blocked: yes'; then
+					stable=$(( ''${stable:-0} + 1 ))
+					[ "$stable" -ge 5 ] && break
+				else
+					stable=0
+				fi
+			done
+
+			# Nudge trusted input devices (MX Anywhere, Keychron) to reconnect.
+			# Input only, so resume doesn't grab the Bose headphones.
+			for dev in $(bluetoothctl devices Trusted | awk '{print $2}'); do
+				bluetoothctl info "$dev" | grep -q 'Icon: input-' || continue
+				timeout 10 bluetoothctl connect "$dev" >/dev/null 2>&1 &
+			done
+			wait
 		'';
 	};
 	# services.logind.lidSwitch = "sudo systemctl suspend";

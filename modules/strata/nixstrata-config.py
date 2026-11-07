@@ -134,6 +134,15 @@ out["gpus_asked"] = True
 # "sampling" replaces it.
 out["sampling"] = m.get("sampling", {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
                                      "presence_penalty": 0.0, "repetition_penalty": 1.0})
+# Think hard on agent work. A request that names no effort gets "high" (the template's xhigh: "think carefully,
+# validate key assumptions, consider plausible alternatives"); STRATA_EFFORT in the config picks another default
+# (none, low, medium, high). A request's own effort, or one saved in Strata's web Chat settings
+# (strata*.shared-settings.json), still wins.
+out["reasoning_effort"] = cfg_in.get("STRATA_EFFORT") or "high"
+# #1053: a turn that writes some reasoning, then the end-of-turn token with no </think>, no answer and no tool call
+# comes back empty and the agent stops (hands back to the user mid-task). This closes the thinking once and lets
+# the model go on to its answer or its next tool call instead.
+out["reasoning_close_retry"] = True
 # A request whose max_tokens doesn't fit the room left in the context gets its output cap shortened to that room
 # instead of a 400 - agent clients (opencode) send the model's full output limit every step, so a long session
 # would otherwise fail outright near the end of the context, and so would the compaction meant to rescue it.

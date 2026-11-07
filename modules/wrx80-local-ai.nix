@@ -1,9 +1,11 @@
-{ config, pkgs, lib, ... }:
+{ config, pkgs, lib, unstable, ... }:
 let
 	# Both builds ship. A GGUF model is backend-agnostic: the same file runs
 	# under ROCm, Vulkan or CPU - only the llama-server binary changes.
 	llamaCppRocm   = pkgs.llama-cpp.override { rocmSupport = true; };
-	llamaCppVulkan = pkgs.llama-cpp.override { vulkanSupport = true; };
+	# Vulkan (the backend actually used) tracks nixpkgs-unstable for upstream's
+	# RDNA3 Vulkan work; ROCm stays on stable as a known-good fallback.
+	llamaCppVulkan = unstable.llama-cpp.override { vulkanSupport = true; };
 
 	stateDir     = "/var/lib/nixllm";
 	modelsDir    = "${stateDir}/models";
@@ -321,6 +323,37 @@ let
 	# a time, since they all share defPort.
 	nixllmSingleLaunchA = mkNixllmLaunch { port = defPort; gpuIndex = 0; };
 	nixllmSingleLaunchB = mkNixllmLaunch { port = defPort; gpuIndex = 1; };
+
+	# nixllm split: llama.cpp on one card, Strata (nixstrata.nix's double instance, nixstrata-a / -b) on the
+	# other. Each card keeps its double port whichever engine it runs (GPU 0 on doublePortA, GPU 1 on
+	# doublePortB), so the per-GPU clients and the gpu-a / gpu-b badger stations don't change. The model is
+	# the active one ('nixllm load', or the one 'nixllm split' picks). No nginx: the two serve different models.
+	splitInstances = {
+		a = { gpu = 0; port = doublePortA; };
+		b = { gpu = 1; port = doublePortB; };
+	};
+	# Each conflicts with every other llama.cpp mode (the double proxy is stopped by 'nixllm split');
+	# nixstrata.nix makes the Strata instance on the same card conflict with it, so the Strata instance
+	# on the OTHER card is the only server that runs beside it.
+	mkSplitUnit = n: let i = splitInstances.${n}; in {
+		description = "llama.cpp server (nixllm split, GPU ${toString i.gpu})";
+		conflicts = [
+			"nixllm.service" "nixllm-single-a.service" "nixllm-single-b.service"
+			"nixllm-double-a.service" "nixllm-double-b.service"
+		] ++ map (o: "nixllm-split-${o}.service") (lib.remove n (lib.attrNames splitInstances));
+		serviceConfig = {
+			ExecStart = mkNixllmLaunch { inherit (i) port; gpuIndex = i.gpu; };
+			User = "llm";
+			Group = "llm";
+			Restart = "on-failure";
+			RestartSec = 2;
+			TimeoutStopSec = 15;
+			SupplementaryGroups = [ "video" "render" ];
+			Environment = [
+				"VK_ICD_FILENAMES=/run/opengl-driver/share/vulkan/icd.d/radeon_icd.x86_64.json"
+			];
+		};
+	};
 
 	nixllmCli = pkgs.writeShellApplication {
 		name = "nixllm";
@@ -1248,6 +1281,102 @@ EOF4
 							;;
 					esac
 					;;
+				split)
+					# llama.cpp on one card, Strata on the other; each card serves on its double port.
+					# The a|b argument names the card llama.cpp gets - Strata takes the other one.
+					STRATA_CONFIG_F="/var/lib/nixstrata/config"   # nixstrata.nix's stateDir
+					sub="''${1:-}"
+					[ "$#" -gt 0 ] && shift || true
+					split_port() { if [ "$1" = a ]; then echo "$DOUBLE_PORT_A"; else echo "$DOUBLE_PORT_B"; fi; }
+					case "$sub" in
+						stop)
+							sudo systemctl stop nixllm-split-a nixllm-split-b nixstrata-a nixstrata-b 2>/dev/null || true
+							echo "nixllm: split stopped"
+							;;
+						status)
+							for g in a b; do
+								if systemctl is-active --quiet "nixllm-split-$g"; then eng="llama.cpp (nixllm-split-$g, $(basename "$(cat "$MODEL_F" 2>/dev/null || echo -)"))"
+								elif systemctl is-active --quiet "nixstrata-$g"; then eng="strata (nixstrata-$g, $(grep '^STRATA_MODEL=' "$STRATA_CONFIG_F" 2>/dev/null | tail -n1 | cut -d= -f2- | tr -d '"'))"
+								else eng="-"; fi
+								echo "gpu-$g (port $(split_port "$g")): $eng"
+								echo "    health: $(health_on "$(split_port "$g")")"
+							done
+							;;
+						""|start|a|b)
+							llama=""
+							case "$sub" in
+								a|b) llama="$sub" ;;
+								start) llama="''${1:-}" ;;
+							esac
+							if [ -z "$llama" ]; then
+								shopt -s nullglob
+								found=("$MODELS_DIR"/*.gguf)
+								if [ ''${#found[@]} -eq 0 ]; then
+									echo "nixllm: no models in $MODELS_DIR - run 'nixllm pull' first" >&2
+									exit 1
+								fi
+								args=()
+								for f in "''${found[@]}"; do
+									args+=("$f" "$(basename "$f") ($(du -h "$f" | cut -f1))")
+								done
+								model="$(whiptail --title "nixllm split" --menu \
+									"Select the llama.cpp model (Strata runs its own: 'nixstrata use')" 20 78 10 \
+									"''${args[@]}" 3>&1 1>&2 2>&3)" || { echo "nixllm: cancelled"; exit 0; }
+								clear
+								printf '%s' "$model" > "$MODEL_F"
+								echo "nixllm: active model -> $model"
+								llama="$(whiptail --title "nixllm split" --menu \
+									"Which card runs llama.cpp? Strata gets the other one." 15 70 2 \
+									a "GPU 0: llama.cpp (:$DOUBLE_PORT_A)   GPU 1: Strata (:$DOUBLE_PORT_B)" \
+									b "GPU 0: Strata (:$DOUBLE_PORT_A)   GPU 1: llama.cpp (:$DOUBLE_PORT_B)" \
+									3>&1 1>&2 2>&3)" || { echo "nixllm: cancelled"; exit 0; }
+								clear
+							fi
+							case "$llama" in
+								a) strata=b ;;
+								b) strata=a ;;
+								*) echo "usage: nixllm split [start] [a|b]   (a|b: the card llama.cpp runs on)" >&2; exit 1 ;;
+							esac
+							[ -s "$MODEL_F" ] || { echo "nixllm: no active model - run 'nixllm load <path.gguf>' or plain 'nixllm split'" >&2; exit 1; }
+							grep -q '^STRATA_MODEL=..' "$STRATA_CONFIG_F" 2>/dev/null \
+								|| { echo "nixllm: no Strata model selected - run 'nixstrata use' first" >&2; exit 1; }
+							lport="$(split_port "$llama")"; sport="$(split_port "$strata")"
+
+							# the double proxy spreads one model over both ports: wrong with two engines
+							sudo systemctl stop nginx 2>/dev/null || true
+							echo "nixllm: split - llama.cpp on gpu-$llama (:$lport), Strata on gpu-$strata (:$sport)"
+							sudo systemctl reset-failed "nixllm-split-$llama" "nixstrata-$strata" 2>/dev/null || true
+							# Conflicts= clears each card first: every other llama.cpp mode, and the Strata
+							# instance on the llama.cpp card (a Strata already up on its own card is kept)
+							sudo systemctl restart "nixllm-split-$llama"
+							if ! wait_health_on "$lport"; then
+								echo "nixllm: nixllm-split-$llama did not come up - check 'journalctl -u nixllm-split-$llama'" >&2
+								exit 1
+							fi
+							echo "nixllm: llama.cpp up on gpu-$llama -> http://0.0.0.0:$lport"
+							sudo systemctl start "nixstrata-$strata"
+							echo "nixllm: Strata loading on gpu-$strata (minutes: its experts load into RAM) ..."
+							ok=false
+							for i in $(seq 1 900); do
+								if health_on "$sport" | grep -q '"service": *"strata"'; then ok=true; break; fi
+								systemctl is-active --quiet "nixstrata-$strata" || break
+								if [ $(( i % 30 )) = 0 ]; then echo "nixllm: nixstrata-$strata still loading ($i s) ..."; fi
+								sleep 1
+							done
+							if [ "$ok" != true ]; then
+								echo "nixllm: nixstrata-$strata did not come up - 'nixstrata logs $strata' / 'nixstrata logs $strata engine'" >&2
+								exit 1
+							fi
+							echo "nixllm: split up"
+							echo "nixllm:   gpu-$llama llama.cpp -> http://0.0.0.0:$lport"
+							echo "nixllm:   gpu-$strata Strata    -> http://0.0.0.0:$sport"
+							;;
+						*)
+							echo "nixllm: unknown split subcommand '$sub' (start [a|b]|a|b|stop|status)" >&2
+							exit 1
+							;;
+					esac
+					;;
 				headroom)
 					GPUS="$(list_amdgpu_gpus)"
 					[ -n "$GPUS" ] || { echo "nixllm: amdgpu VRAM sysfs not found" >&2; exit 1; }
@@ -1335,6 +1464,12 @@ nixllm - manage the llama.cpp server on this host
                                 runs on the main port (${defPort}), no nginx routing
   nixllm single stop [a|b]     stop the single instance (infers gpu if only one is running)
   nixllm single status [a|b]   single service state + health
+  nixllm split [start] [a|b]   llama.cpp on one card, Strata on the other (a|b = the llama.cpp card;
+                                no argument: TUI to pick the model and the card)
+                                gpu-a: port ${doublePortA}   gpu-b: port ${doublePortB}   whichever engine runs there
+                                Strata uses its own model ('nixstrata use')
+  nixllm split stop            stop both halves
+  nixllm split status          which engine runs on which card + health
   nixllm load <path.gguf>      select the active model
   nixllm backend <rocm|vulkan> choose the server backend (default: ${defBackend})
   nixllm swap                  flip which GPU is enumerated first in the layer-split (restart to apply)
@@ -1385,7 +1520,7 @@ EOF
 					cword=$COMP_CWORD
 				fi
 
-				local cmds="start stop restart status gpu-monitor tps headroom double single load \
+				local cmds="start stop restart status gpu-monitor tps headroom double single split load \
 					backend swap context ctx parallel p think fa flash preset mmproj apikey \
 					pull models login logout help"
 
@@ -1407,6 +1542,12 @@ EOF
 						if [ "$cword" -eq 2 ]; then
 							mapfile -t COMPREPLY < <(compgen -W "start stop status" -- "$cur")
 						elif [ "$cword" -eq 3 ] && { [ "$prev" = "stop" ] || [ "$prev" = "status" ]; }; then
+							mapfile -t COMPREPLY < <(compgen -W "a b" -- "$cur")
+						fi ;;
+					split)
+						if [ "$cword" -eq 2 ]; then
+							mapfile -t COMPREPLY < <(compgen -W "start stop status a b" -- "$cur")
+						elif [ "$cword" -eq 3 ] && [ "$prev" = "start" ]; then
 							mapfile -t COMPREPLY < <(compgen -W "a b" -- "$cur")
 						fi ;;
 					apikey)
@@ -1557,6 +1698,10 @@ in
 			];
 		};
 	};
+
+	# nixllm split: the llama.cpp half (see splitInstances / mkSplitUnit). Started by 'nixllm split'.
+	systemd.services.nixllm-split-a = mkSplitUnit "a";
+	systemd.services.nixllm-split-b = mkSplitUnit "b";
 
 	# Reverse proxy for double only. ip_hash keeps a given client on the
 	# same backend so its KV cache is actually reused turn-to-turn (llama.cpp

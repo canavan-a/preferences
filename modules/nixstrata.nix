@@ -39,6 +39,9 @@ let
 		"nixllm.service" "nixllm-single-a.service" "nixllm-single-b.service"
 		"nixllm-double-a.service" "nixllm-double-b.service"
 	];
+	# nixllm split (wrx80-local-ai.nix): one llama-server on one card beside the Strata double instance
+	# (nixstrata-a / -b) on the other. Each Strata instance stops only the split llama-server on its own card.
+	nixllmSplitUnit = n: "nixllm-split-${n}.service";
 
 	# Models nixstrata can pull / use / delete. To add one, add an entry.
 	#   files:      every shard, as named in the repo (shard 1 first)
@@ -770,7 +773,7 @@ in
 		configName = "strata-${n}.json";
 		servicePort = i.port;
 		instArgs = "${n} ${toString i.gpu} ${toString i.port} ${arenaDir}";
-		conflicts = nixllmUnits;
+		conflicts = nixllmUnits ++ [ (nixllmSplitUnit n) ];
 		extra = {
 			unitConfig.RequiresMountsFor = arenaDir;
 			serviceConfig = {
@@ -790,7 +793,8 @@ in
 			description = "Strata server (managed by the nixstrata CLI)";
 			configName = "strata.json";
 			servicePort = port;
-			conflicts = nixllmUnits ++ map (n: "nixstrata-${n}.service") (lib.attrNames doubleInstances);
+			conflicts = nixllmUnits ++ map (n: "nixstrata-${n}.service") (lib.attrNames doubleInstances)
+				++ map nixllmSplitUnit (lib.attrNames doubleInstances);
 		};
 
 		# Super Badger Station Standard API on the localhost adapter port, with nixllm's station

@@ -34,6 +34,8 @@
   hardware.wirelessRegulatoryDatabase = true;
   boot.extraModprobeConfig = ''
     options cfg80211 ieee80211_regdom="US"
+    # MT7921 BT is flaky with USB autosuspend (MX Anywhere losing its bond after s2idle).
+    options btusb enable_autosuspend=0
   '';
 
   networking.networkmanager.wifi.powersave = false;  

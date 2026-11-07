@@ -27,6 +27,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 port, state, share, engine_exe, station_map = (int(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4],
                                                sys.argv[5])
+# nixllm's API key ('nixllm apikey'), next to its station map, for a llama-server's /metrics (nixllm split)
+nixllm_apikey = os.path.join(os.path.dirname(station_map), "apikey")
 servers = {}                                   # port -> {"unit", "config"}
 for spec in sys.argv[6:]:
     sport, rest = spec.split("=", 1)
@@ -197,8 +199,46 @@ def gpu_part(gpus, idx):
     return s
 
 
+def llama_metrics(sport):
+    """A llama-server's Prometheus /metrics on that port (nixllm split runs one beside a Strata server), as
+    {name: value} without the "llamacpp:" prefix, or None when nothing answers."""
+    req = urllib.request.Request(f"http://127.0.0.1:{sport}/metrics")
+    try:
+        with open(nixllm_apikey, encoding="utf-8") as f:
+            key = f.read().strip()
+        if key:
+            req.add_header("Authorization", f"Bearer {key}")
+    except OSError:
+        pass
+    try:
+        with urllib.request.urlopen(req, timeout=2) as r:
+            text = r.read().decode("utf-8", "replace")
+    except Exception:
+        return None
+    out = {}
+    for line in text.splitlines():
+        p = line.split()
+        if len(p) == 2 and p[0].startswith("llamacpp:"):
+            try:
+                out[p[0][len("llamacpp:"):]] = float(p[1])
+            except ValueError:
+                pass
+    return out or None
+
+
 def down_stats(st, gpus, mem):
-    """A mapped station no Strata server serves (its nixllm server is stopped while Strata runs)."""
+    """A mapped station no Strata server serves: a llama-server's numbers when one answers on its port (nixllm
+    split), else down (its nixllm server is stopped while Strata runs)."""
+    m = llama_metrics(st["port"])
+    if m is not None:
+        generating = (m.get("requests_processing") or 0) > 0
+        return {"up": 1, "loaded": 1, "generating": 1 if generating else 0,
+                "queued": m.get("requests_deferred"),
+                "tokens_per_sec": r1(m.get("predicted_tokens_seconds")) or 0,
+                "last_prompt_tok_s": r1(m.get("prompt_tokens_seconds")),
+                "prompt_tokens_total": m.get("prompt_tokens_total"),
+                "output_tokens_total": m.get("tokens_predicted_total"),
+                **mem, **gpu_part(gpus, st["gpu"])}
     return {"up": 0, "loaded": 0, "generating": 0, "tokens_per_sec": 0, **mem, **gpu_part(gpus, st["gpu"])}
 
 
