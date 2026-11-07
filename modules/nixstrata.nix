@@ -799,15 +799,17 @@ in
 
 		# Super Badger Station Standard API on the localhost adapter port, with nixllm's station
 		# map (nixstrata-control passes metrics requests here). Wanted by every Strata server;
-		# Conflicts= stops nixllm's adapter to free the port, and when no Strata server is left
-		# this one exits cleanly and OnSuccess= starts nixllm's again.
+		# ExecStartPre stops nixllm's adapter to free the port, and when no Strata server is left
+		# this one exits cleanly and OnSuccess= starts nixllm's again. Not Conflicts=: systemd
+		# applies that when a start of nixllm's adapter is queued (a rebuild queues one), before
+		# its ExecCondition can skip it, so this one was stopped and nothing served the port.
 		nixstrata-badger = {
 			description = "Super Badger station endpoint for nixstrata (stands in for nixllm-badger-api)";
-			conflicts = [ "nixllm-badger-api.service" ];
 			after = [ "nixllm-badger-api.service" ];
 			unitConfig.OnSuccess = [ "nixllm-badger-api.service" ];
 			path = [ pkgs.systemd ];
 			serviceConfig = {
+				ExecStartPre = "+${pkgs.systemd}/bin/systemctl stop nixllm-badger-api.service";
 				ExecStart = "${python}/bin/python ${./strata/nixstrata-badger.py} ${toString badgerAdapterPort} ${stateDir} ${share} ${strata}/libexec/strata/strata ${badgerStationMap} ${lib.escapeShellArgs badgerServers}";
 				User = "llm";
 				Group = "llm";
