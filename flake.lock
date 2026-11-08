@@ -687,11 +687,11 @@
         "nixpkgs": "nixpkgs_7"
       },
       "locked": {
-        "lastModified": 1794175557,
-        "narHash": "sha256-51fZLjm4UMYfLcxscAaFNWZ3pESotl8ivIySUSKEvu4=",
+        "lastModified": 1794177269,
+        "narHash": "sha256-iiKDj6PZvbbxqMcd8/NRXCAzUwJOVFiLrsjs0tMWw4o=",
         "owner": "canavan-a",
         "repo": "super-atlas",
-        "rev": "40f2c23b92dd8604aa91339e1c54f85c817647fc",
+        "rev": "dbb5fd1ba8469b8141c0d4e78e2f367517b9e965",
         "type": "github"
       },
       "original": {
