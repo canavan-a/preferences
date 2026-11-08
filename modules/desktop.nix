@@ -2,6 +2,13 @@
 
 { inputs, config, pkgs, lib, open-lock, unstable, ... }:
 let
+	# Brave was dropped from nixpkgs channels on 2026-11-03 and re-added on
+	# release-26.05 (nixpkgs#584546). Pull only Brave from there until the
+	# nixos-26.05 channel catches up, then drop this and the nixpkgs-brave input.
+	bravePkgs = import inputs.nixpkgs-brave {
+		system = "x86_64-linux";
+		config.allowUnfree = true;
+	};
 	androidComposition = pkgs.androidenv.composeAndroidPackages {
 		# 34 / 34.0.0 / 26.1.10909125 added for super-badger's app (RN 0.75's
 		# usual pins — see ~/canavan-a/super-badger/app/android/build.gradle);
@@ -38,7 +45,7 @@ in
 		# VA-API encode on the 780M fails (vaMapBuffer) and aborts the GPU process
 		# mid-call (Teams video jumps/lags). Keep HW decode, drop HW encode. The full
 		# disable list is repeated in case Chromium keeps only the last switch.
-		(brave.override {
+		(bravePkgs.brave.override {
 			commandLineArgs = "--disable-features=AcceleratedVideoEncoder,OutdatedBuildDetector,UseChromeOSDirectVideoDecoder";
 		})
 		terraform
