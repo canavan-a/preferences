@@ -53,9 +53,13 @@
 		# Signing key SHA-256s, so invite links open the app directly: the
 		# release key (sideload builds; super-atlas/release/gen-keystore.sh
 		# prints it), and once the first bundle is uploaded, Play's app signing
-		# key (Play Console → App integrity → App signing).
+		# key (Play Console → App integrity → App signing). The other three
+		# are the ones Play Console's generated assetlinks.json lists.
 		androidCertSha256 = [
 			"C7:B6:A9:20:2F:A5:17:1F:6D:5D:DE:7A:0F:35:BD:22:3B:90:1B:62:D7:7A:59:75:2D:EB:A8:F4:AE:FD:B5:AC"
+			"37:5D:A7:AC:3B:48:5C:0D:7D:AC:EF:D5:8A:30:56:37:7C:75:4E:23:54:4D:9A:D8:86:29:B3:70:6E:3A:EA:5D"
+			"23:AC:43:3A:25:84:A6:E7:F4:64:02:94:DA:69:A6:A7:8A:E4:C1:70:BE:EE:C4:39:82:1D:92:7E:A5:54:C5:C9"
+			"3A:E8:5B:80:BA:A2:02:24:86:1A:51:BF:70:F0:EF:B8:13:43:85:55:1D:AA:5A:1E:B0:F2:2E:2E:4D:59:71:67"
 		];
 		web.enable = true;
 		# The Gmail account sign-in codes are sent from, put on the box once:
