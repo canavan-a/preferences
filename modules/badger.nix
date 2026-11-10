@@ -77,9 +77,15 @@
 		home.stateVersion = "25.11";
 		programs.opencode = {
 			enable = true;
+			# The same opencode 2 opencode-serve runs (super-badger pins it): a
+			# 1.x CLI on this account would share ~/.local/share/opencode with it.
+			package = config.services.superbadger.opencode.package;
 			settings = {
 				permission = {
 					edit = "ask";
+					# opencode 2 lets the agent touch paths outside the station's
+					# directory without asking; this account has passwordless sudo.
+					external_directory = "ask";
 				};
 				provider.nixllm = {
 					npm = "@ai-sdk/openai-compatible";

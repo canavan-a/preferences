@@ -148,7 +148,7 @@ in
 
 			programs.opencode = {
 				enable = true;
-				package = pkgs.opencode;
+				package = unstable.opencode; # 2.x; stable 26.05 is still on 1.15
 				settings = {
 					permission = {
 						edit = "ask";
