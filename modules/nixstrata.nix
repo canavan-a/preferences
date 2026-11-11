@@ -208,7 +208,9 @@ let
 					if systemctl is-active --quiet "$u"; then echo "$u $p"; fi
 				done <<< "$SERVERS"
 			}
-			double_running() { running | grep -q '^nixstrata-'; }
+			# grep >/dev/null, not -q: -q quits at the first match, so with both double units up running()
+			# writes its second line into a closed pipe, dies of SIGPIPE, and pipefail made this false
+			double_running() { running | grep '^nixstrata-' >/dev/null; }
 			restart_hint() {
 				if double_running; then echo "nixstrata: run 'nixstrata double restart' to apply"
 				elif [ -n "$(running)" ]; then echo "nixstrata: run 'nixstrata restart' to apply"; fi
