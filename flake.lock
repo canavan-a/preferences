@@ -347,11 +347,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1794222723,
-        "narHash": "sha256-jehPADpSIsWnyNHw/s44OHF9l6Y75QmW74sqO9cEe0A=",
+        "lastModified": 1794425805,
+        "narHash": "sha256-4s5CRvkYX4oAJVZ+zu2bBKFH2gG2GqN6OKHEWgJr1AY=",
         "owner": "NixOS",
         "repo": "nixos-hardware",
-        "rev": "919c16cf46a7acf9b44b2c2444bc39aa094eaa85",
+        "rev": "b6ca87f78ec5bafc4b2aef7b29803dcf419266af",
         "type": "github"
       },
       "original": {
@@ -378,11 +378,11 @@
     },
     "nixpkgs-brave": {
       "locked": {
-        "lastModified": 1794328035,
-        "narHash": "sha256-VNZ0NIwMtXFtfsqAm2O34YdcdHf7sZLB/UJ1xFNv+mg=",
+        "lastModified": 1794437763,
+        "narHash": "sha256-gc5GkCfcHwKUuAGt+ZxQCaV6Zq92WqHbA7v4Sv8leBM=",
         "owner": "nixos",
         "repo": "nixpkgs",
-        "rev": "94b66b2691733178aa0b5646289775d79bf2e4cf",
+        "rev": "1361f6841cb4d508ffc461d0844c66fc56ec979e",
         "type": "github"
       },
       "original": {
@@ -393,6 +393,22 @@
       }
     },
     "nixpkgs-unstable": {
+      "locked": {
+        "lastModified": 1793977579,
+        "narHash": "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "4fe25e12eb9f4c744966dd3de5a05246cf098601",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "ref": "nixpkgs-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "nixpkgs-unstable_2": {
       "locked": {
         "lastModified": 1793977579,
         "narHash": "sha256-WrSODdZFVIs/Hh2NzC0bY+ROByi0bATg8WfePX8dPj8=",
@@ -703,14 +719,15 @@
     "super-badger": {
       "inputs": {
         "flake-utils": "flake-utils_4",
-        "nixpkgs": "nixpkgs_8"
+        "nixpkgs": "nixpkgs_8",
+        "nixpkgs-unstable": "nixpkgs-unstable_2"
       },
       "locked": {
-        "lastModified": 1794036501,
-        "narHash": "sha256-Dh2L0LY2ge/b0+0XKjvC0jLavZRq4jGnuoRFzkrITDE=",
+        "lastModified": 1794439209,
+        "narHash": "sha256-lGu4v668rXFgw+V9T2hQZHvdz5WJIMTnm8wyY5BfQho=",
         "owner": "canavan-a",
         "repo": "super-badger",
-        "rev": "cc8a8d09b8b8faff623f9a28ee9827cb3232e440",
+        "rev": "cad28dce1e0e7102acabf56db1b6e9f874836b61",
         "type": "github"
       },
       "original": {

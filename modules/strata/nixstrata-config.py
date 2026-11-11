@@ -98,10 +98,13 @@ args = ["--pack", str(pack), "--native", str(shards[0]), "--ple-gguf", str(ple),
         "--expert-profile", str(share / "data" / m.get("profile", "expert-profile.bin")),
         "--expert-cache", "auto", "--prefill", str(m.get("prefill", "auto")),
         "--spec", "4", "--spec-min-p", "0.5", "--mtp", str(rt), "--max-context", str(ctx)]
-if ctx > 8192:
-    args += ["--kv", "int8"]
+# KV in fp16 (the engine's own default) at every context, not setup.py's int8 above 8K: deep into a long agent
+# session the 8-bit K/V's rounding is one more source of drift. It costs twice the KV - about 3.6 GB of RAM at 128K
+# with streaming, and ~0.9 GB of VRAM for the 32K resident window instead of ~0.45 (a few experts fewer on the card).
+args += ["--kv", "fp16"]
 # KV streaming (setup.py's rule): from 64K the KV cache lives in RAM and the VRAM it frees holds more experts.
-kv_ram_gb = ctx * 13 * 1056 / 1e9
+# 13 layers (12 QSA + the draft layer) x 2112 B a cell in fp16 (twice int8's 1056; setup.py has no fp16 figure).
+kv_ram_gb = ctx * 13 * 2112 / 1e9
 if ctx >= 65536 and total_ram_gb() >= m["ram_gb"] + kv_ram_gb + 1:
     args += ["--kv-resident", "32768"]
 args += m.get("extra_args", [])
@@ -128,21 +131,28 @@ if len(gpus) > 1:
 elif gpus:
     out["gpu"] = gpus[0]
 out["gpus_asked"] = True
-# Qwen's recommended thinking-mode sampling (Qwen3.8-Flash-Next model card, "Best Practices") with temperature
-# lowered from 1.0 to 0.6 for steadier agent work, as the default for any field a request leaves out - without it
-# Strata decodes greedily (0), which caused reasoning loops. A request's own values still win. A catalog entry's
-# "sampling" replaces it.
-out["sampling"] = m.get("sampling", {"temperature": 0.6, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
+# Qwen's recommended thinking-mode sampling (Qwen3.8-Flash-Next model card, "Best Practices"), as the default for any
+# field a request leaves out - without it Strata decodes greedily (0), which caused reasoning loops. Temperature is
+# the card's 1.0: the earlier 0.6 was suspected of making long agent sessions settle on the safest next step - ending the turn to ask
+# for confirmation. presence_penalty stays 0 (it would push code away from identifiers it already wrote). A
+# request's own values still win. A catalog entry's "sampling" replaces it.
+out["sampling"] = m.get("sampling", {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0,
                                      "presence_penalty": 0.0, "repetition_penalty": 1.0})
-# Think hard on agent work. A request that names no effort gets "high" (the template's xhigh: "think carefully,
-# validate key assumptions, consider plausible alternatives"); STRATA_EFFORT in the config picks another default
-# (none, low, medium, high). A request's own effort, or one saved in Strata's web Chat settings
-# (strata*.shared-settings.json), still wins.
-out["reasoning_effort"] = cfg_in.get("STRATA_EFFORT") or "high"
+# A request that names no effort gets "medium". "high" (the template's xhigh: "think carefully, validate key
+# assumptions, consider plausible alternatives") was suspected of making long agent sessions stop to check with the user
+# instead of carrying on. STRATA_EFFORT in the config picks another default (none, low, medium, high). A request's
+# own effort, or one saved in Strata's web Chat settings (strata*.shared-settings.json), still wins.
+out["reasoning_effort"] = cfg_in.get("STRATA_EFFORT") or "medium"
 # #1053: a turn that writes some reasoning, then the end-of-turn token with no </think>, no answer and no tool call
 # comes back empty and the agent stops (hands back to the user mid-task). This closes the thinking once and lets
 # the model go on to its answer or its next tool call instead.
 out["reasoning_close_retry"] = True
+# Deep into a long agent session the model drifts from the template's tool-call form (<parameter=NAME> for
+# <function=NAME>, JSON inside <tool_call>, a bare <function=NAME> line, two calls in one block). Off, those come back
+# as plain text: the client sees an answer with no call and ends its turn - the agent "stops early" and hands back.
+# This reads them as the declared tool's call (docs/DETAILS.md, "Tool calls in other forms"; upstream later made it
+# the default, 3fcb2106).
+out["tool_call_recovery"] = True
 # The experimental speed projection (docs/DETAILS.md, "Experimental speed projection"): a model whose catalog entry
 # loads its control vector (gsq-iq3_s) runs every request with it - the refusal-direction projection, so the model
 # doesn't decline requests. On by default once loaded; made explicit here, and an "off" saved in Strata's web Chat
