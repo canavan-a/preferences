@@ -780,11 +780,11 @@
         "nixpkgs": "nixpkgs_11"
       },
       "locked": {
-        "lastModified": 1794067846,
-        "narHash": "sha256-Q8T86Kln2Y8ArZZIuUPcK1A2emQcBonxVFW2/ss1lPg=",
+        "lastModified": 1794511009,
+        "narHash": "sha256-81vMO+NDa3vUerF00weZLj+0O/0gT4kEYg+fMxcKU7E=",
         "owner": "canavan-a",
         "repo": "super-pages",
-        "rev": "661f3c95395d524640a9d22b9d819638a8013802",
+        "rev": "0e9151dfb081365d5067f6fc69052ee25ed37b0d",
         "type": "github"
       },
       "original": {
