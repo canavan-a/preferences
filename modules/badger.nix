@@ -1,4 +1,11 @@
 { config, pkgs, lib, ... }:
+let
+	opencodeOffline = {
+		OPENCODE_DISABLE_AUTOUPDATE = "1";
+		OPENCODE_DISABLE_MODELS_FETCH = "1";
+		OPENCODE_DISABLE_FREE_MODELS = "1";
+	};
+in
 {
 	users.users."badger" = {
 		isNormalUser = true;
@@ -73,14 +80,24 @@
 	systemd.services.opencode-serve.path = [ "/run/wrappers" ];
 	systemd.services.superbadger.path = [ "/run/wrappers" ];
 
+	# Keep opencode off opencode.ai: no update checks (Nix pins the version),
+	# no models.opencode.ai list download (every provider here is declared in
+	# full below), and no opencode-hosted free models. Sharing is off in the
+	# settings below.
+	systemd.services.opencode-serve.environment = opencodeOffline;
+
 	home-manager.users.badger = {
 		home.stateVersion = "25.11";
+		# Same for the opencode CLI run from this account.
+		home.sessionVariables = opencodeOffline;
 		programs.opencode = {
 			enable = true;
 			# The same opencode 2 opencode-serve runs (super-badger pins it): a
 			# 1.x CLI on this account would share ~/.local/share/opencode with it.
 			package = config.services.superbadger.opencode.package;
 			settings = {
+				share = "disabled";
+				update = "disable";
 				permission = {
 					edit = "ask";
 					# opencode 2 lets the agent touch paths outside the station's
