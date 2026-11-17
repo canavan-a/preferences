@@ -82,6 +82,8 @@
 						enable = true;
 						serverUrl = "https://aidan.supermatrix.io";
 						tokenFile = "/etc/supermatrix/relay-token";
+						# The Nix agent, so Super Matrix can build and run Nix services here.
+						nixServices.enable = true;
 					};
 				}
 			];
