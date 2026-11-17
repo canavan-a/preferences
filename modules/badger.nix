@@ -25,6 +25,8 @@
 		enable = true;
 		serverUrl = "https://aidan.supermatrix.io";
 		tokenFile = "/etc/supermatrix/relay-token";
+		# The Nix agent, so Super Matrix can build and run Nix services here.
+		nixServices.enable = true;
 	};
 
 	# Run the relay outside the Mullvad tunnel (Mullvad's split tunneling):
@@ -37,13 +39,14 @@
 	# systemd sets NoNewPrivileges to apply that to a non-root service. So
 	# "!" starts the command as root (the rest of the sandbox still applies),
 	# mullvad-exclude joins the cgroup, and setpriv drops to the dynamic user
-	# before the relay runs. ProtectControlGroups and ProtectKernelTunables
-	# would both leave /sys/fs/cgroup read-only.
+	# before the relay runs, keeping only the supermatrix-nix group (the Nix
+	# agent's socket; --clear-groups would drop it). ProtectControlGroups and
+	# ProtectKernelTunables would both leave /sys/fs/cgroup read-only.
 	systemd.services.supermatrix-relay = {
 		after = [ "mullvad-daemon.service" ];
 		wants = [ "mullvad-daemon.service" ];
 		serviceConfig = {
-			ExecStart = lib.mkForce "!${pkgs.mullvad}/bin/mullvad-exclude ${pkgs.util-linux}/bin/setpriv --reuid=supermatrix-relay --regid=supermatrix-relay --clear-groups /var/lib/supermatrix-relay/bin/supermatrix-relay";
+			ExecStart = lib.mkForce "!${pkgs.mullvad}/bin/mullvad-exclude ${pkgs.util-linux}/bin/setpriv --reuid=supermatrix-relay --regid=supermatrix-relay --groups=supermatrix-nix /var/lib/supermatrix-relay/bin/supermatrix-relay";
 			# For setpriv's switch to the relay's user; dropped as it switches.
 			CapabilityBoundingSet = lib.mkForce [ "CAP_SETUID" "CAP_SETGID" ];
 			ProtectControlGroups = lib.mkForce false;
