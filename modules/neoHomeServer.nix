@@ -108,4 +108,37 @@ in
 		serverUrl = "https://aidan.supermatrix.io";
 		tokenFile = "/etc/supermatrix/relay-token";
 	};
+
+	# --- Keeping the box up under memory pressure ---
+	# neo has 7.7G and no swap; previous boots ended in a full stall (journald
+	# watchdog, sshd auth timeouts, inference at 260s) rather than a clean OOM
+	# kill. zram gives headroom, earlyoom kills the biggest offender before the
+	# kernel thrashes, and the per-unit caps turn a leak into a logged restart
+	# (Restart=always is already set) instead of a frozen host.
+	zramSwap.enable = true;
+	services.earlyoom.enable = true;
+	systemd.services.horus-capture-eye.serviceConfig.MemoryMax = "3G";
+	# MediaMTX serves WebRTC (WHEP); cap it too in case viewer sessions leak.
+	systemd.services.horus-mediamtx.serviceConfig.MemoryMax = "1G";
+
+	# Memory/CPU history every 10 min, so the next incident has a trend to read:
+	#   sar -r -f /var/log/sa/saDD     (DD = day of month)
+	services.sysstat.enable = true;
+
+	# Nothing else ever deletes clips (59G and growing). Drop ones older than
+	# 14 days, thumbnails included.
+	systemd.services.horus-clip-cleanup = {
+		description = "Delete horus clips older than 14 days";
+		serviceConfig.Type = "oneshot";
+		script = ''
+			${pkgs.findutils}/bin/find /var/lib/horus-capture-eye/clips -type f -mtime +14 -delete
+		'';
+	};
+	systemd.timers.horus-clip-cleanup = {
+		wantedBy = [ "timers.target" ];
+		timerConfig = {
+			OnCalendar = "daily";
+			Persistent = true;
+		};
+	};
 }
