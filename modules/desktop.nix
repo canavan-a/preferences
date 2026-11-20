@@ -36,6 +36,13 @@ in
 	};
 
 	environment.systemPackages = with pkgs; [
+		# Re-pair the MX Anywhere 3 Mac after it forgets this laptop (alias: mouseconnect)
+		(writeShellApplication {
+			name = "mx-mouse-repair";
+			runtimeInputs = [ config.hardware.bluetooth.package util-linux gnugrep gawk coreutils ];
+			bashOptions = [ "nounset" ];
+			text = builtins.readFile ../scripts/mouseconnect.sh;
+		})
 		android-tools
 		androidComposition.androidsdk
 		jdk17
@@ -698,5 +705,6 @@ in
 		daylight = "pkill hyprsunset; echo;";
 		bup = "sudo brightnessctl set 10%+"; 
 		bdown = "sudo brightnessctl set 10%-";
+		mouseconnect = "mx-mouse-repair";
 	};
 }
