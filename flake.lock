@@ -777,11 +777,11 @@
         "nixpkgs": "nixpkgs_9"
       },
       "locked": {
-        "lastModified": 1795294563,
-        "narHash": "sha256-6rV3SQW7SWNLCJpYqBV5cqn9XsJjBuDf8fPY8s0J380=",
+        "lastModified": 1795297678,
+        "narHash": "sha256-X+V2RyGDQ9cQhV/oGIJvphFoaTDGo3b4PvKti1t48GM=",
         "owner": "canavan-a",
         "repo": "super-calendar",
-        "rev": "166bee17af9d8e85cab10990fcdcc41cd038dc17",
+        "rev": "f7f2ce8612b0d83798ab0702be45135ce2b48941",
         "type": "github"
       },
       "original": {
