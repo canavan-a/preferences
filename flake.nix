@@ -28,10 +28,11 @@
 	super-atlas.url = "github:canavan-a/super-atlas";
 	super-matrix.url = "github:canavan-a/super-matrix";
 	super-pages.url = "github:canavan-a/super-pages";
+	super-calendar.url = "github:canavan-a/super-calendar";
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, super-chat, super-atlas, super-matrix, super-pages, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, super-chat, super-atlas, super-matrix, super-pages, super-calendar, ... } @ inputs:
   	let 
   	unstable = import nixpkgs-unstable {
   		system = "x86_64-linux";
@@ -161,8 +162,8 @@
 			];
 		};
 
-		# The old stealth-operation server, now running Super Chat, Super Atlas
-		# and Super Pages.
+		# The old stealth-operation server, now running Super Chat, Super Atlas,
+		# Super Pages and Super Calendar.
 		superchat = nixpkgs.lib.nixosSystem {
 			system = "x86_64-linux";
 			modules = serverBase ++ [
@@ -171,6 +172,7 @@
 				super-chat.nixosModules.default
 				super-atlas.nixosModules.default
 				super-pages.nixosModules.default
+				super-calendar.nixosModules.default
 				super-matrix.nixosModules.relay
 			];
 		};

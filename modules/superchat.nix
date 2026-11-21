@@ -110,6 +110,27 @@
 		androidCertSha256 = [ ];
 	};
 
+	services.supercalendar = {
+		enable = true;
+		# Loopback only, next to Super Chat's 8080/8081, Super Atlas's 8090
+		# and Super Pages's 8100. Published as supercalendar.lunargen.com by
+		# the Super Matrix relay below (add it as a service in the app); the
+		# app's release builds are made for that address
+		# (super-calendar/release/app.env). The edge passes the client's IP in
+		# X-Forwarded-For, which trustProxy (default on) uses for rate limits.
+		listenAddr = "127.0.0.1:8110";
+		# The Gmail account sign-in codes and calendar invites are sent from,
+		# and the invite code a new account needs (remove that line to open
+		# sign-ups up to the account cap). Put on the box once:
+		#   sudo install -D -m 600 -o root /dev/stdin /etc/supercalendar/env <<EOF
+		#   SUPERCALENDAR_SMTP_EMAIL=...
+		#   SUPERCALENDAR_SMTP_APP_PASSWORD=...
+		#   SUPERCALENDAR_INVITE_CODE=...
+		#   EOF
+		# The service won't start until this file exists.
+		environmentFile = "/etc/supercalendar/env";
+	};
+
 	# Super Matrix relay, as on neo. It dials out to the server, so it needs
 	# no open ports; which services it forwards is set in the app. Add this
 	# box as its own relay in the app and put its token (smr_…) here, out of
