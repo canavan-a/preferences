@@ -365,11 +365,11 @@
         "nixpkgs": "nixpkgs_3"
       },
       "locked": {
-        "lastModified": 1795645749,
-        "narHash": "sha256-biwxHsvmkbGs3QJLxmUVpaRVXu7sRCsfyAELehMTnBs=",
+        "lastModified": 1795647160,
+        "narHash": "sha256-c3p4ppziUhJ093yXQSGiOxrZ3F/S/BNwx98Q4oi1BmQ=",
         "owner": "canavan-a",
         "repo": "music-bot-super-chat",
-        "rev": "915ef05e8f86f7a18cb20cb7b3b74d57a5d92f99",
+        "rev": "2f0566b9a212904272a0a316dbddfe87c906b746",
         "type": "github"
       },
       "original": {
