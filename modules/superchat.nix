@@ -131,6 +131,24 @@
 		environmentFile = "/etc/supercalendar/env";
 	};
 
+	# The Super Chat music bot (github:canavan-a/music-bot-super-chat): tag it
+	# in a chat with `play <YouTube, SoundCloud or Spotify link, or a search>`
+	# and it plays in that chat's voice. It talks to chat.superbadger.io like
+	# any client, so it needs no ports. Its admin password (for `login` in
+	# chat), put on the box once:
+	#   sudo install -D -m 600 -o root /dev/stdin /etc/music-bot/password
+	# The first start makes its account (the recovery phrase is written to
+	# /var/lib/music-bot/init-output.txt). Then add it to a chat with
+	# `music-bot join <invite link>` on the box, or from a chat it's in:
+	# `login <password>`, then `join <invite link>`.
+	services.music-bot = {
+		enable = true;
+		passwordFile = "/etc/music-bot/password";
+		# Leave a chat's voice after this long with nobody else in it, or with
+		# nothing playing or queued.
+		idle = "30s";
+	};
+
 	# Super Matrix relay, as on neo. It dials out to the server, so it needs
 	# no open ports; which services it forwards is set in the app. Add this
 	# box as its own relay in the app and put its token (smr_…) here, out of

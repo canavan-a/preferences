@@ -29,10 +29,11 @@
 	super-matrix.url = "github:canavan-a/super-matrix";
 	super-pages.url = "github:canavan-a/super-pages";
 	super-calendar.url = "github:canavan-a/super-calendar";
+	music-bot.url = "github:canavan-a/music-bot-super-chat";
   };
 
 
-  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, super-chat, super-atlas, super-matrix, super-pages, super-calendar, ... } @ inputs:
+  outputs = { self, nixpkgs, nixos-hardware, home-manager, stylix, home-server, open-lock, fleetman, nixpkgs-unstable, horus-33, super-badger, super-chat, super-atlas, super-matrix, super-pages, super-calendar, music-bot, ... } @ inputs:
   	let 
   	unstable = import nixpkgs-unstable {
   		system = "x86_64-linux";
@@ -173,6 +174,7 @@
 				super-atlas.nixosModules.default
 				super-pages.nixosModules.default
 				super-calendar.nixosModules.default
+				music-bot.nixosModules.default
 				super-matrix.nixosModules.relay
 			];
 		};
